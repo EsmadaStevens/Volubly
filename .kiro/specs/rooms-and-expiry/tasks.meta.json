@@ -1,0 +1,784 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create `firestore.rules` with all helpers (`isAuthed`, `userDoc`, `ageBand`, `roomIsOpen`, `isInProbation`, `hasNoUrl`, `ageCanReadRoom`) and all collection rules (`publicProfiles`, `users`, `rooms`, `rooms/messages`, `rooms/participants`, `rooms/rateLimits`) exactly as specified in the design": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578077535
+      },
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578118233
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819359826
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823199980
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823209648
+      }
+    ],
+    "2.1 Configure Firebase Emulator Suite for Firestore (`firebase.json`, `firestore.rules` path, emulator ports) and add Vitest config with `--run` mode and a `testEnvironment` that initialises the Firestore emulator SDK": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578079715
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819359931
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823217040
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823308205
+      },
+      {
+        "executionId": "6ac13748-5466-4955-a5d5-dcedc1752b49",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794824019109
+      },
+      {
+        "executionId": "6ac13748-5466-4955-a5d5-dcedc1752b49",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794824527271
+      }
+    ],
+    "2.2 Add a `vitest.emulator.config.ts` that points to the emulator test files and sets `pool: 'forks'` to avoid SDK singleton conflicts": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578081032
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819360045
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823314152
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823388059
+      }
+    ],
+    "3.1 Write **Property 1 – Expiry_Interval**: generate offsets in [1 s, 86 399 s] (open) and [86 401 s, 172 800 s] (expired); assert write permitted / rejected accordingly; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578081440
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819360246
+      }
+    ],
+    "3.2 Write **Property 2 – Expired_Write_Rejection**: seed rooms with `openedAt` between 24 h 1 s and 48 h ago; assert every message write is rejected with `permission-denied`; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578081799
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819360365
+      }
+    ],
+    "3.3 Write **Property 3 – Expired_Read_Rejection**: seed same expired rooms; assert every message read is rejected with `permission-denied`; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578082181
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819360469
+      }
+    ],
+    "3.4 Write **Property 4 – Message_ID_Idempotency**: generate random UUID v4 `messageId`; call `setDoc` twice with the same ID; assert exactly one document exists in Firestore; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578082570
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819360595
+      }
+    ],
+    "3.5 Write **Property 5 – Sort_Correctness_EndingSoon**: generate 2–10 rooms with random `openedAt` values; assert client `ending_soon` output matches `[...rooms].sort((a,b) => a.openedAt - b.openedAt)`; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578082936
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819360709
+      }
+    ],
+    "3.6 Write **Property 6 – Sort_Correctness_Busiest**: generate 2–10 rooms with random `postingParticipantCount`; assert client `busiest` output matches `[...rooms].sort((a,b) => b.count - a.count)`; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578083679
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819360842
+      }
+    ],
+    "3.7 Write **Property 7 – Probation_Link_Block**: generate messages with URLs in mixed case and multi-line bodies; seed user with `createdAt = now - random(0, PROBATION_DURATION-1)`; assert write rejected; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578084072
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819360966
+      }
+    ],
+    "3.8 Write **Property 8 – Age_Visibility_Query**: seed rooms with each `maturityLabel`; run discovery queries as each age band; assert returned set matches the allowed matrix; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578084476
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819361099
+      }
+    ],
+    "3.9 Write **Property 9 – Age_Visibility_Rules**: seed rooms with each `maturityLabel`; call `getDoc` as each age band; assert Security Rules deny per the matrix; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578084866
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819361240
+      }
+    ],
+    "3.10 Write **Property 10 – Age_Restricted_Post**: generate message writes to `13_plus`/`18_plus` rooms by `under_13` users and to `18_plus` rooms by `13_17` users; assert all rejected; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578085398
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819361356
+      }
+    ],
+    "3.11 Write **Property 11 – Immutable_Room_Fields**: generate update attempts changing `type`, `maturityLabel`, `openedAt`, `expiresAt`, or `createdBy`; assert all rejected; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578085785
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819361475
+      }
+    ],
+    "3.12 Write **Property 12 – Room_Field_Allowlist**: generate room/message creates with extra fields appended; assert all rejected; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578086202
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819361599
+      }
+    ],
+    "3.13 Write **Property 13 – createdAt_Immutable**: generate update attempts to `users/{userId}` changing `createdAt` or `ageBandLabel`; assert all rejected; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578086583
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819361748
+      }
+    ],
+    "3.14 Write **Property 14 – Spoofed_createdAt_On_Create**: generate user creates with `createdAt != request.time` (past and future); assert all rejected; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578087145
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819361911
+      }
+    ],
+    "3.15 Write **Property 15 – Cross_User_Read_Denied**: generate authenticated reads of `users/{otherUserId}` where caller UID ≠ document UID; assert all rejected; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578087432
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819362055
+      }
+    ],
+    "3.16 Write **Property 16 – RateLimit_Sentinel_Required**: generate message batches that omit the `rateLimits` write; assert all rejected because `getAfter` fails; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578087840
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819362180
+      }
+    ],
+    "3.17 Write **Property 17 – Participant_Count_Tied**: generate room `postingParticipantCount + 1` updates without a matching participant document create in the same batch; assert all rejected; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578088241
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819362311
+      }
+    ],
+    "3.18 Write **Property 18 – Participant_Message_Tied**: generate participant creates where `firstMessageId` does not correspond to a message in the same batch; assert all rejected; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578088673
+      }
+    ],
+    "3.19 Write **Property 19 – Category_Allowlist**: generate room creates with one or more categories outside the fixed allowlist; assert all rejected; `numRuns: 20`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578089081
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819362658
+      }
+    ],
+    "4. Checkpoint — Security Rules verified": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578089492
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819362785
+      }
+    ],
+    "5.1 Create `firestore.indexes.json` at the repository root with the two composite indexes defined in the design: `maturityLabel ASC + openedAt DESC` and `maturityLabel ASC + openedAt ASC`; set `fieldOverrides: []`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578089939
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819362915
+      }
+    ],
+    "6.1 Create `src/types/index.ts` exporting `AgeBandLabel`, `MaturityLabel`, `Category`, `CATEGORY_ALLOWLIST`, `PROBATION_DURATION_S = 3600`, and Firestore document interfaces `Room`, `Message`, `Participant`, `RateLimit`, `PublicProfile`, `UserDoc`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578090338
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819363043
+      }
+    ],
+    "6.2 Create `src/lib/appError.ts` exporting `AppError` class with a `code` field and the error codes used in `preCheckSend` and `handlePermissionDenied` (`ROOM_EXPIRED`, `RATE_LIMITED`, `PROBATION_URL`, `MESSAGE_BLOCKED`)": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578090770
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819363188
+      }
+    ],
+    "7.1 Create `src/lib/roomUtils.ts` and implement `isExpired(room: Room, now: Date): boolean` — returns `true` when `now.getTime() >= room.openedAt.toMillis() + 86_400_000`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578091210
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819363319
+      }
+    ],
+    "7.2 Implement `reasonLabel(room: Room, now: Date): string` in `src/lib/roomUtils.ts` — all five branches from the design: \"New room\" (< 5 min), \"Ending in N h\" (< 2 h remaining), \"Opened today\", \"Open now\"; must never return \"Active today\", \"Trending now\", \"Hot\", or \"Popular\"": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578091662
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819363435
+      }
+    ],
+    "7.3 Create `src/lib/discoveryUtils.ts` and implement `maturityFilter(ageBand: AgeBandLabel): QueryConstraint | null` — mirrors `ageCanReadRoom()` in Security Rules exactly; `under_13` → `==`, `13_17` → `in`, `18_plus` → `null`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578091988
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819363549
+      }
+    ],
+    "7.4 Implement `buildDiscoveryQuery(ageBand, sortOrder)` in `src/lib/discoveryUtils.ts` — includes `openedAt > cutoff` filter, `limit(100)`, maturity filter, and `orderBy`; `busiest` uses `openedAt DESC` with no `orderBy` on count": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578092306
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819363663
+      }
+    ],
+    "7.5 Implement `splitAndSort(rooms, userCategories, sortOrder)` in `src/lib/discoveryUtils.ts` — `busiest` sorts client-side by `postingParticipantCount` desc before splitting; `newest`/`ending_soon` arrive pre-sorted": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578092692
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819363777
+      }
+    ],
+    "7.6 Create `src/lib/messageUtils.ts` and implement `hasNoUrl(text: string): boolean` — mirrors the `(?is).*(https?://|www\\\\.).*` pattern from Security Rules; must handle mixed case and multi-line input": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578093087
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819363900
+      }
+    ],
+    "7.7 Implement `preCheckSend(room, uid, body, lastSentAt)` in `src/lib/messageUtils.ts` — throws `AppError` for each of the three pre-check branches: expiry, rate limit (< 3 s), probation URL": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578093685
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819364023
+      }
+    ],
+    "7.8 Implement `handlePermissionDenied(roomId, uid, message)` in `src/lib/messageUtils.ts` — reads back the message doc; if it exists and `senderId == uid` returns silently; otherwise throws `MESSAGE_BLOCKED`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578094142
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819364144
+      }
+    ],
+    "7.9 Write unit tests for all utilities in `src/lib/__tests__/roomUtils.test.ts` and `src/lib/__tests__/discoveryUtils.test.ts` using Vitest (no emulator):": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578094548
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819364265
+      }
+    ],
+    "7.10 Write unit tests for message utilities in `src/lib/__tests__/messageUtils.test.ts` using Vitest (no emulator):": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578094977
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819364376
+      }
+    ],
+    "8. Checkpoint — All unit tests pass": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578095402
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819364492
+      }
+    ],
+    "9.1 Create `src/lib/sendMessage.ts` and implement `sendFirstMessage(roomId, uid, message, roomExpiresAt)` — builds the four-document batch (participant + room increment + message + rateLimits), commits it, calls `handlePermissionDenied` on `permission-denied`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578095849
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819364609
+      }
+    ],
+    "9.2 Implement `sendSubsequentMessage(roomId, uid, message, roomExpiresAt)` in `src/lib/sendMessage.ts` — two-document batch (message + rateLimits); same error handling": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578096297
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819364772
+      }
+    ],
+    "9.3 Implement the orphaned-participant guard in a shared `sendMessage` entry-point function: call `getDoc` on the participant ref before the first send; if the doc already exists, skip to `sendSubsequentMessage`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578096738
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819364888
+      }
+    ],
+    "10.1 Create `src/components/discovery/RoomCard.tsx` rendering: room title, `MaturityBadge` (all_ages / 13_plus / 18_plus), `ReasonLabel` (from `reasonLabel()`), `PostingParticipantCount`, and `ExpiryCountdown` (derived from `openedAt` via `isExpired`; no polling of a stored status field)": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578097170
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819365012
+      }
+    ],
+    "10.2 Create `src/components/discovery/RoomSection.tsx` rendering a labelled section header (\"Your picks\" or \"Also live\") with a list of `RoomCard` components": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578097655
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819365131
+      }
+    ],
+    "10.3 Create `src/components/discovery/SortOrderTabs.tsx` with three tabs: \"Live now\" (newest), \"Ending soon\", \"Busiest\"; calls `buildDiscoveryQuery` on tab change": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578098092
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819365271
+      }
+    ],
+    "10.4 Create `src/pages/DiscoveryPage.tsx` composing `SortOrderTabs` + two `RoomSection` components; subscribes to the discovery query with `onSnapshot`; calls `splitAndSort` to partition results; filters expired rooms via `openedAt > cutoff` without reading a stored status": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578098506
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819365397
+      }
+    ],
+    "11.1 Create `src/components/createRoom/CreateRoomSheet.tsx` with `TypeSelector` (live_room / open_topic), `TitleInput` (1–120 chars), `MaturitySelector` (all_ages / 13_plus / 18_plus), `CategoryPicker` (up to 3 from `CATEGORY_ALLOWLIST`), and `SubmitButton`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578099003
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819365496
+      }
+    ],
+    "12.1 Create `src/components/room/MessageComposer.tsx` with a plain-text `TextArea` (1–280 chars) and `SendButton`; calls `preCheckSend` before dispatch and displays the appropriate error for each `AppError` code": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578099555
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819365615
+      }
+    ],
+    "12.2 Create `src/components/room/MessageItem.tsx` resolving `publicProfiles/{senderId}` for username and `avatarSeed`; renders avatar deterministically from `avatarSeed`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578100009
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819365733
+      }
+    ],
+    "12.3 Create `src/components/room/MessageList.tsx` subscribing to `rooms/{roomId}/messages` ordered by `sentAt`; renders `MessageItem` list with optimistic entries keyed on `messageId`; replaces optimistic entry in-place when real-time snapshot delivers the same `messageId`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578100472
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819365858
+      }
+    ],
+    "12.4 Create `src/components/room/RoomHeader.tsx` showing room title, participant count from the room document, and an `ExpiryCountdown` that derives remaining time from `openedAt` without polling a stored field; shows \"This room has ended\" when `isExpired` returns `true`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578100918
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819365963
+      }
+    ],
+    "12.5 Create `src/pages/RoomPage.tsx` composing `RoomHeader`, `MessageList`, `MessageComposer`; gates entry with an expiry check (`isExpired`) and an age-band check; wires `sendMessage` to the composer submit": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578101342
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819366069
+      }
+    ],
+    "13.1 Create `src/lib/firebase.ts` initialising the Firebase app with Auth, Firestore, and App Check; export typed `db`, `auth`, and `appCheck` instances": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578101800
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819366173
+      }
+    ],
+    "13.2 Create `src/lib/account.ts` implementing the user onboarding write: a `writeBatch` that creates `users/{uid}` (`createdAt: serverTimestamp()`, `ageBandLabel`) and `publicProfiles/{uid}` (`username`, `avatarSeed`) atomically": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578102261
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819366279
+      }
+    ],
+    "14.1 Create `src/hooks/useMessages.ts` — a React hook wrapping `onSnapshot` on `rooms/{roomId}/messages`; merges optimistic messages with real messages using `messageId` as the key; cancels the subscription on unmount": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578102854
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819366409
+      }
+    ],
+    "14.2 Create `src/hooks/useExpiryCountdown.ts` — a React hook that takes `openedAt: Timestamp` and returns `{ remainingMs, isExpired }`; derives state from `openedAt` only using `setInterval`; clears interval when `isExpired` becomes `true`": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578103272
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819366529
+      }
+    ],
+    "15. Final checkpoint — All tests pass": [
+      {
+        "executionId": "f0ba6d48-44a0-4513-804c-8b0cc54afbfb",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794578103668
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819366645
+      }
+    ],
+    "0.1 Initialise a Vite + React + TypeScript project at the repository root using `npm create vite@latest . -- --template react-ts`; install production dependencies: `firebase`; install dev dependencies: `tailwindcss`, `postcss`, `autoprefixer`, `vitest`, `@vitest/ui`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`, `fast-check`, `@firebase/rules-unit-testing`, `firebase-admin`; initialise Tailwind with `npx tailwindcss init -p` and configure `content` to include `./src/**/*.{ts,tsx}`": [
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819357571
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819382112
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823051222
+      }
+    ],
+    "0.2 Add npm scripts to `package.json`: `\"test\": \"vitest --run\"` and `\"test:emulator\": \"vitest --run --config vitest.emulator.config.ts\"`; verify `npm test` exits 0 with no test files (empty run is acceptable)": [
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819359528
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823059264
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823140952
+      }
+    ],
+    "0.3 Write `README.md` at the repository root listing prerequisites (Node >= 20 LTS, Java >= 11 required by Firebase Emulator Suite), setup steps (`npm install`, `npm test`, `npm run test:emulator`), and a one-paragraph description of Volubly": [
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819359662
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823148728
+      },
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823190423
+      }
+    ],
+    "3.18 Write **Property 18 – Participant_Message_Tied**: three sub-cases, all must be rejected: (a) participant create with a `firstMessageId` whose message is not in the batch at all; (b) participant create where `firstMessageId` points to a message that already exists in Firestore (pre-existing, not newly created); (c) participant create where `firstMessageId` points to a message being created in the same batch but whose `senderId` belongs to a different user; `numRuns: 20`": [
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794819362502
+      }
+    ],
+    "0. Scaffold project": [
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823190484
+      }
+    ],
+    "1. Write Firestore Security Rules": [
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823209738
+      }
+    ],
+    "2. Set up emulator test harness": [
+      {
+        "executionId": "b8f238c2-f1cd-4325-b4e5-727c75609949",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1794823388195
+      }
+    ]
+  }
+}

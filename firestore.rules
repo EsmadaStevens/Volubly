@@ -1,0 +1,189 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function ageBand() {
+      return userDoc().ageBandLabel;
+    }
+
+    function roomIsOpen(roomData) {
+      return request.time < roomData.openedAt + duration.value(86400, 's');
+    }
+
+    function isInProbation() {
+      return request.time < userDoc().createdAt + duration.value(3600, 's');
+    }
+
+    function hasNoUrl(text) {
+      return !text.matches('(?is).*(https?://|www\\.).*');
+    }
+
+    function ageCanReadRoom(maturity) {
+      let band = ageBand();
+      return band == '18_plus'
+          || (band == '13_17'   && maturity in ['all_ages', '13_plus'])
+          || (band == 'under_13' && maturity in ['all_ages']);
+    }
+
+    match /publicProfiles/{userId} {
+      allow read:   if isAuthed();
+      allow create: if isAuthed()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['username', 'avatarSeed'])
+        && request.resource.data.username is string
+        && request.resource.data.username.size() >= 1
+        && request.resource.data.username.size() <= 30
+        && request.resource.data.avatarSeed is string
+        && request.resource.data.avatarSeed.size() >= 1;
+      allow update: if isAuthed()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['username', 'avatarSeed'])
+        && request.resource.data.username is string
+        && request.resource.data.username.size() >= 1
+        && request.resource.data.username.size() <= 30
+        && request.resource.data.avatarSeed is string
+        && request.resource.data.avatarSeed.size() >= 1;
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read:   if isAuthed() && request.auth.uid == userId;
+      allow create: if isAuthed()
+        && request.auth.uid == userId
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.ageBandLabel in ['under_13', '13_17', '18_plus']
+        && request.resource.data.keys().hasOnly(['createdAt', 'ageBandLabel']);
+      allow update: if isAuthed()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['createdAt', 'ageBandLabel'])
+        && request.resource.data.createdAt    == resource.data.createdAt
+        && request.resource.data.ageBandLabel == resource.data.ageBandLabel;
+      allow delete: if false;
+    }
+
+    match /rooms/{roomId} {
+
+      allow read: if isAuthed() && ageCanReadRoom(resource.data.maturityLabel);
+
+      allow create: if isAuthed()
+        && ageCanReadRoom(request.resource.data.maturityLabel)
+        && request.resource.data.openedAt == request.time
+        && request.resource.data.expiresAt >= request.time + duration.value(86400, 's')
+        && request.resource.data.expiresAt <= request.time + duration.value(93600, 's')
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.postingParticipantCount == 0
+        && request.resource.data.keys().hasOnly([
+             'type', 'title', 'maturityLabel', 'categories',
+             'openedAt', 'expiresAt', 'createdBy', 'postingParticipantCount'
+           ])
+        && request.resource.data.type in ['live_room', 'open_topic']
+        && request.resource.data.maturityLabel in ['all_ages', '13_plus', '18_plus']
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 1
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.categories.size() >= 1
+        && request.resource.data.categories.size() <= 3
+        && request.resource.data.categories.hasOnly([
+             'film', 'sport', 'music', 'gaming', 'news',
+             'science', 'food', 'travel', 'tech', 'other'
+           ]);
+
+      allow update: if isAuthed()
+        && roomIsOpen(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['postingParticipantCount'])
+        && request.resource.data.postingParticipantCount == resource.data.postingParticipantCount + 1
+        && !exists(/databases/$(database)/documents/rooms/$(roomId)/participants/$(request.auth.uid))
+        && existsAfter(/databases/$(database)/documents/rooms/$(roomId)/participants/$(request.auth.uid))
+        && request.resource.data.type         == resource.data.type
+        && request.resource.data.maturityLabel == resource.data.maturityLabel
+        && request.resource.data.openedAt      == resource.data.openedAt
+        && request.resource.data.expiresAt     == resource.data.expiresAt
+        && request.resource.data.createdBy     == resource.data.createdBy;
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isAuthed()
+          && ageCanReadRoom(get(/databases/$(database)/documents/rooms/$(roomId)).data.maturityLabel)
+          && roomIsOpen(get(/databases/$(database)/documents/rooms/$(roomId)).data);
+
+        allow create: if isAuthed()
+          && ageCanReadRoom(get(/databases/$(database)/documents/rooms/$(roomId)).data.maturityLabel)
+          && roomIsOpen(get(/databases/$(database)/documents/rooms/$(roomId)).data)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.keys().hasOnly([
+               'messageId', 'senderId', 'body', 'sentAt', 'roomId', 'expiresAt'
+             ])
+          && request.resource.data.messageId == messageId
+          && request.resource.data.body is string
+          && request.resource.data.body.size() >= 1
+          && request.resource.data.body.size() <= 280
+          && request.resource.data.sentAt    == request.time
+          && request.resource.data.roomId    == roomId
+          && request.resource.data.expiresAt == get(/databases/$(database)/documents/rooms/$(roomId)).data.expiresAt
+          && getAfter(/databases/$(database)/documents/rooms/$(roomId)/rateLimits/$(request.auth.uid))
+               .data.lastMessageAt == request.time
+          && (!exists(/databases/$(database)/documents/rooms/$(roomId)/rateLimits/$(request.auth.uid))
+              || get(/databases/$(database)/documents/rooms/$(roomId)/rateLimits/$(request.auth.uid))
+                   .data.lastMessageAt < request.time - duration.value(3, 's'))
+          && (!isInProbation() || hasNoUrl(request.resource.data.body));
+
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      match /participants/{userId} {
+        allow read: if isAuthed();
+
+        allow create: if isAuthed()
+          && request.auth.uid == userId
+          && ageCanReadRoom(get(/databases/$(database)/documents/rooms/$(roomId)).data.maturityLabel)
+          && roomIsOpen(get(/databases/$(database)/documents/rooms/$(roomId)).data)
+          && request.resource.data.keys().hasOnly(['userId', 'firstMessageId', 'firstMessageAt', 'expiresAt'])
+          && request.resource.data.userId          == request.auth.uid
+          && request.resource.data.firstMessageAt  == request.time
+          && request.resource.data.expiresAt       == get(/databases/$(database)/documents/rooms/$(roomId)).data.expiresAt
+          && !exists(/databases/$(database)/documents/rooms/$(roomId)/participants/$(userId))
+          // firstMessageId must be a NEW message in this batch: must not exist before, must exist after,
+          // and its senderId must equal the caller
+          && !exists(/databases/$(database)/documents/rooms/$(roomId)/messages/$(request.resource.data.firstMessageId))
+          && existsAfter(/databases/$(database)/documents/rooms/$(roomId)/messages/$(request.resource.data.firstMessageId))
+          && getAfter(/databases/$(database)/documents/rooms/$(roomId)/messages/$(request.resource.data.firstMessageId))
+               .data.senderId == request.auth.uid;
+
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      match /rateLimits/{userId} {
+        allow read: if isAuthed() && request.auth.uid == userId;
+
+        allow create: if isAuthed()
+          && request.auth.uid == userId
+          && roomIsOpen(get(/databases/$(database)/documents/rooms/$(roomId)).data)
+          && request.resource.data.keys().hasOnly(['userId', 'lastMessageAt', 'expiresAt'])
+          && request.resource.data.userId         == request.auth.uid
+          && request.resource.data.lastMessageAt  == request.time
+          && request.resource.data.expiresAt      == get(/databases/$(database)/documents/rooms/$(roomId)).data.expiresAt;
+
+        allow update: if isAuthed()
+          && request.auth.uid == userId
+          && roomIsOpen(get(/databases/$(database)/documents/rooms/$(roomId)).data)
+          && request.resource.data.keys().hasOnly(['userId', 'lastMessageAt', 'expiresAt'])
+          && request.resource.data.userId         == resource.data.userId
+          && request.resource.data.lastMessageAt  == request.time
+          && request.resource.data.expiresAt      == resource.data.expiresAt;
+
+        allow delete: if false;
+      }
+    }
+  }
+}
