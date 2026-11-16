@@ -71,7 +71,8 @@ service cloud.firestore {
 
     match /rooms/{roomId} {
 
-      allow read: if isAuthed() && ageCanReadRoom(resource.data.maturityLabel);
+      allow get: if isAuthed() && ageCanReadRoom(resource.data.maturityLabel) && roomIsOpen(resource.data);
+      allow list: if isAuthed() && ageCanReadRoom(resource.data.maturityLabel);
 
       allow create: if isAuthed()
         && ageCanReadRoom(request.resource.data.maturityLabel)
@@ -141,7 +142,7 @@ service cloud.firestore {
       }
 
       match /participants/{userId} {
-        allow read: if isAuthed();
+        allow read: if isAuthed() && request.auth.uid == userId;
 
         allow create: if isAuthed()
           && request.auth.uid == userId
