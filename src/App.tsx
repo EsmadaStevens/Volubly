@@ -1,3 +1,9 @@
-export default function App() {
-  return <div className="min-h-screen bg-gray-900 text-white p-4">Volubly</div>
-}
+   import AiSpike from './spike/AiSpike'
+
+   export default function App() {
+     return (
+       <div className="min-h-screen bg-slate-950">
+         <AiSpike />
+       </div>
+     )
+   }
