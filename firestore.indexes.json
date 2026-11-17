@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "rooms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "maturityLabel", "order": "ASCENDING" },
+        { "fieldPath": "openedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "rooms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "maturityLabel", "order": "ASCENDING" },
+        { "fieldPath": "openedAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
