@@ -8,7 +8,13 @@ export type SessionState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'needs-onboarding'; uid: string }
-  | { status: 'ready'; uid: string; profile: PublicProfile; ageBand: AgeBandLabel }
+  | { status: 'ready'; uid: string; profile: PublicProfile; ageBand: AgeBandLabel; createdAtMs: number }
+
+// If the sign-up time is missing, treat the account as brand new (the stricter choice).
+function toMillis(value: unknown): number {
+  const t = value as { toMillis?: () => number } | undefined
+  return t && typeof t.toMillis === 'function' ? t.toMillis() : Date.now()
+}
 
 export function useSession() {
   const [state, setState] = useState<SessionState>({ status: 'loading' })
@@ -48,6 +54,7 @@ export function useSession() {
           uid: user.uid,
           profile: profileSnap.data() as PublicProfile,
           ageBand: userSnap.data().ageBandLabel as AgeBandLabel,
+          createdAtMs: toMillis(userSnap.data().createdAt),
         })
       } catch (e) {
         fail(e)
@@ -62,7 +69,7 @@ export function useSession() {
 
   const retry = useCallback(() => setAttempt((n) => n + 1), [])
   const completeOnboarding = useCallback((uid: string, profile: PublicProfile, ageBand: AgeBandLabel) => {
-    setState({ status: 'ready', uid, profile, ageBand })
+    setState({ status: 'ready', uid, profile, ageBand, createdAtMs: Date.now() })
   }, [])
 
   return { state, retry, completeOnboarding }

@@ -1,0 +1,82 @@
+import { formatClock } from '../lib/messageUtils'
+import type { MessageView, PublicProfile } from '../types'
+import Avatar from './Avatar'
+
+export default function MessageItem({
+  message,
+  profile,
+  mine,
+  hiddenReason,
+  uncertain = true,
+  revealed = false,
+  onToggle,
+  heldSecs = 0,
+  onRelease,
+}: {
+  message: MessageView
+  profile: PublicProfile | null | undefined
+  mine: boolean
+  /** Why this message starts hidden on this device, if it does. */
+  hiddenReason?: string
+  /** Adds "it may be wrong" when the reason involves a guess. */
+  uncertain?: boolean
+  revealed?: boolean
+  onToggle?: () => void
+  /** Delay Shield: seconds left before this message is shown. Above 0 means it is held back. */
+  heldSecs?: number
+  /** "Show now" for a held message. */
+  onRelease?: () => void
+}) {
+  const name = profile === undefined ? '...' : (profile?.username ?? 'Unknown')
+  const collapsed = !!hiddenReason && !revealed
+  const held = heldSecs > 0
+  return (
+    <li className={`flex gap-2 py-1.5 ${mine ? 'flex-row-reverse' : ''}`}>
+      <Avatar seed={profile?.avatarSeed ?? message.senderId} size={32} />
+      <div className={`flex min-w-0 max-w-[80%] flex-col ${mine ? 'items-end' : 'items-start'}`}>
+        <p className="text-xs text-muted">
+          <span className={`font-bold ${mine ? 'text-accent' : 'text-ink'}`}>{mine ? 'You' : name}</span>
+          {' · '}
+          {formatClock(message.sentAtMs)}
+          {message.pending && ' · sending'}
+          {message.simulated && (
+            <span className="ml-2 rounded bg-warn/20 px-1.5 py-0.5 text-[12px] font-bold text-warn">SIMULATED</span>
+          )}
+        </p>
+        {held ? (
+          <div className="mt-0.5 rounded-2xl rounded-tl-sm border border-dashed border-spark/50 bg-night px-3 py-2 text-sm text-muted">
+            <p>Held back: this might spoil what is happening on your screen. Shows in {Math.ceil(heldSecs)} s.</p>
+            <button type="button" onClick={onRelease} className="min-h-[44px] font-bold text-spark underline">
+              Show now
+            </button>
+          </div>
+        ) : collapsed ? (
+          <div className="mt-0.5 rounded-2xl rounded-tl-sm border border-dashed border-line bg-night px-3 py-2 text-sm text-muted">
+            <p>
+              Hidden: {hiddenReason}.{uncertain && ' Checked on your device, so it may be wrong.'}
+            </p>
+            <button type="button" onClick={onToggle} className="min-h-[44px] font-bold text-spark underline">
+              Show message
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Plain text only: links are not made clickable. */}
+            <p
+              className={`mt-0.5 whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-base text-ink ${
+                mine ? 'rounded-tr-sm bg-raised' : 'rounded-tl-sm bg-surface'
+              }`}
+            >
+              {message.body}
+            </p>
+            {hiddenReason && (
+              <button type="button" onClick={onToggle} className="min-h-[44px] text-xs font-bold text-spark underline">
+                Hide again
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </li>
+  )
+}

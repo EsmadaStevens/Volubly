@@ -7,6 +7,7 @@ export interface ReadySession {
   uid: string
   profile: PublicProfile
   ageBand: AgeBandLabel
+  createdAtMs: number
 }
 
 export default function AuthGate({ children }: { children: (session: ReadySession) => ReactNode }) {
@@ -40,5 +41,5 @@ export default function AuthGate({ children }: { children: (session: ReadySessio
     return <OnboardingPage uid={state.uid} onDone={completeOnboarding} />
   }
 
-  return <>{children({ uid: state.uid, profile: state.profile, ageBand: state.ageBand })}</>
+  return <>{children({ uid: state.uid, profile: state.profile, ageBand: state.ageBand, createdAtMs: state.createdAtMs })}</>
 }
