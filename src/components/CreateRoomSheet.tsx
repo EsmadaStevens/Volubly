@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { allowedMaturities } from '../lib/discoveryUtils'
 import { createRoom } from '../lib/rooms'
+import { RoomLimitError } from '../lib/roomSlots'
 import { checkRoomTitle, ROOM_TITLE_MAX } from '../lib/roomTitle'
 import {
   MATURITY_DISPLAY,
@@ -58,8 +59,12 @@ export default function CreateRoomSheet({
       const id = await createRoom({ uid, type, title: t.value, maturityLabel: maturity, categories: cats })
       onCreated(id)
     } catch (err) {
-      console.error('createRoom failed', err)
-      setError("We couldn't start the room. Check your connection and try again.")
+      if (err instanceof RoomLimitError) {
+        setError('You already have 2 live rooms. You can start another when one of them closes.')
+      } else {
+        console.error('createRoom failed', err)
+        setError("We couldn't start the room. Check your connection and try again.")
+      }
       setBusy(false)
     }
   }
