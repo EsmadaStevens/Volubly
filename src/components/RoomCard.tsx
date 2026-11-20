@@ -30,7 +30,7 @@ export default function RoomCard({
         <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-night px-2.5 py-1">
           <LiveDot />
           <span className="text-xs font-semibold text-live">
-            {room.postingParticipantCount === 0 ? 'Be the first' : `${room.postingParticipantCount} posting`}
+            {room.postingParticipantCount === 0 ? 'Be the first' : `${room.postingParticipantCount} have posted`}
           </span>
         </div>
       </div>

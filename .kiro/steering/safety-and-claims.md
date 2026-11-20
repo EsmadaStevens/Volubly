@@ -15,6 +15,7 @@
 - Judge behaviour (age of account, rate, repetition, links), not writing style. Never claim a model can tell AI-written text from human text.
 - Show labels like "new account". Never publicly label a person "bot".
 - Labelled bots (for example a trivia bot with a visible Bot badge) are allowed. Unlabelled automation is not.
+- Room limit: one account can have at most 2 active rooms at a time, enforced in firestore.rules with two slot documents per user. This limits spam, not a hard guarantee: anonymous accounts can be recreated, and a recreated account gets new slots. Never describe it as unbypassable or as preventing all spam.
 
 ## Teen protections (minimum)
 - Neutral age screen at sign-up. Do not hint at the cutoff age. Store only an age band.

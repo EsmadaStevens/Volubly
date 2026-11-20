@@ -109,3 +109,14 @@ export interface RoomView {
   postingParticipantCount: number
   createdBy: string
 }
+
+export interface MessageView {
+  id: string
+  senderId: string
+  body: string
+  sentAtMs: number
+  /** True while the message is only stored on this device and has not reached the server. */
+  pending: boolean
+  /** Demo mode only: exists on this screen, never stored, never shown to anyone else. */
+  simulated?: boolean
+}

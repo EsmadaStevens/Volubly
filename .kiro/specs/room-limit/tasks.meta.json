@@ -1,0 +1,350 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create `tests/rules/roomLimitHelpers.ts`": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082841322
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082861782
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795090529201
+      }
+    ],
+    "2.1 Add slot helper functions and the `roomSlots` match block": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082841421
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082862033
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795090529440
+      }
+    ],
+    "2.2 Add the slot conjunct to the `rooms` create rule": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082841610
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795090538229
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795090948568
+      }
+    ],
+    "3.1 Set up the test file and write the two-active-room limit tests": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082841697
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795090956669
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795094123829
+      }
+    ],
+    "3.2 Write slot shape and id tests": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082841789
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795094134961
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795095202689
+      }
+    ],
+    "3.3 Write room and slot linkage tests": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082841892
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795095210774
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795099243437
+      }
+    ],
+    "3.4 Write slot immutability and reuse tests": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082841992
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795099265168
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795099613243
+      }
+    ],
+    "3.5 Write slot privacy tests": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082842099
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795099624513
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795106892310
+      }
+    ],
+    "3.6 Write expiry-derivation tests": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082842205
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795106899768
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795107033931
+      }
+    ],
+    "4.1 Write the limit model property test": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082842305
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795107048321
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795107958881
+      }
+    ],
+    "4.2 Write the slot immutability property test": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082842416
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795108402402
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795108997706
+      }
+    ],
+    "5.1 Write the worst-case valid batch test in `tests/rules/roomLimit.test.ts`": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082842564
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795107966328
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795108395070
+      }
+    ],
+    "6. Checkpoint - Rules and tests": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082842665
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795109035917
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795109819947
+      }
+    ],
+    "7.1 Append the room-limit entry to `docs/build-log.md`": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082842771
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795109820652
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795156812131
+      }
+    ],
+    "8.1 Check `.kiro/steering/safety-and-claims.md` for the room-limit bullet": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082842864
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795109821266
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795156875998
+      }
+    ],
+    "9.1 Verify scope with git": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082842977
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795156883458
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795157307294
+      }
+    ],
+    "9.2 Run both test suites": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795082843090
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795157315346
+      },
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795157557641
+      }
+    ],
+    "1. Add test helpers for room and slot batches": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795090529319
+      }
+    ],
+    "2. Implement the slot rules in `firestore.rules`": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795090948619
+      }
+    ],
+    "3. Write example tests in `tests/rules/roomLimit.test.ts`": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795107033977
+      }
+    ],
+    "5. Guard the rules access-call budget": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795108395218
+      }
+    ],
+    "4. Write required property-based tests in `tests/rules/roomLimit.property.test.ts`": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795108998010
+      }
+    ],
+    "7. Add the build-log entry": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795156812348
+      }
+    ],
+    "8. Verify the steering bullet": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795156876112
+      }
+    ],
+    "9. Final checkpoint - Full test run and scope check": [
+      {
+        "executionId": "06dba46b-6ac7-4bb6-86d2-8040b3515ce1",
+        "chatSessionId": "sess_977b8581-9298-423b-a301-813fb6b04068",
+        "timestamp": 1795157557784
+      }
+    ]
+  }
+}

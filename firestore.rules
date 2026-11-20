@@ -33,6 +33,65 @@ service cloud.firestore {
           || (band == 'under_13' && maturity in ['all_ages']);
     }
 
+    // ---- room-limit slot helpers ----
+    // limits spam, not a hard guarantee: anonymous accounts can be recreated.
+
+    function ownsSlotId(slotId) {
+      return isAuthed()
+        && slotId in [request.auth.uid + '_1', request.auth.uid + '_2'];
+    }
+
+    function slotPath(slotId) {
+      return /databases/$(database)/documents/roomSlots/$(slotId);
+    }
+
+    // The slot, as it will be after the batch, points at this new room.
+    function slotMatchesNewRoom(slotId, roomId) {
+      let p = slotPath(slotId);
+      return existsAfter(p)
+        && getAfter(p).data.roomId == roomId
+        && getAfter(p).data.userId == request.auth.uid
+        && getAfter(p).data.openedAt == request.time;
+    }
+
+    // The referenced room must be created by the caller in this same batch.
+    function slotIsForNewRoom(roomId) {
+      let rp = /databases/$(database)/documents/rooms/$(roomId);
+      return !exists(rp)
+        && existsAfter(rp)
+        && getAfter(rp).data.createdBy == request.auth.uid
+        && getAfter(rp).data.openedAt == request.time;
+    }
+
+    function validSlotData() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['userId', 'roomId', 'openedAt', 'expiresAt'])
+        && d.keys().hasOnly(['userId', 'roomId', 'openedAt', 'expiresAt'])
+        && d.userId == request.auth.uid
+        && d.roomId is string
+        && d.roomId.size() >= 1
+        && d.openedAt == request.time
+        && d.expiresAt == getAfter(/databases/$(database)/documents/rooms/$(d.roomId)).data.expiresAt;
+    }
+
+    function slotExpired(prev) {
+      return prev.openedAt + duration.value(86400, 's') <= request.time;
+    }
+
+    match /roomSlots/{slotId} {
+      allow get:    if ownsSlotId(slotId);
+      allow list:   if isAuthed() && resource.data.userId == request.auth.uid;
+      allow create: if ownsSlotId(slotId)
+                    && validSlotData()
+                    && slotIsForNewRoom(request.resource.data.roomId);
+      allow update: if ownsSlotId(slotId)
+                    && slotExpired(resource.data)
+                    && request.resource.data.roomId != resource.data.roomId
+                    && validSlotData()
+                    && slotIsForNewRoom(request.resource.data.roomId);
+      allow delete: if false;
+    }
+
     match /publicProfiles/{userId} {
       allow read:   if isAuthed();
       allow create: if isAuthed()
@@ -95,7 +154,9 @@ service cloud.firestore {
         && request.resource.data.categories.hasOnly([
              'film', 'sport', 'music', 'gaming', 'news',
              'science', 'food', 'travel', 'tech', 'other'
-           ]);
+           ])
+        && (slotMatchesNewRoom(request.auth.uid + '_1', roomId)
+            || slotMatchesNewRoom(request.auth.uid + '_2', roomId));
 
       allow update: if isAuthed()
         && roomIsOpen(resource.data)

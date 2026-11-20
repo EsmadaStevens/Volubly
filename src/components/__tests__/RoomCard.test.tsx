@@ -18,7 +18,7 @@ describe('RoomCard', () => {
   it('shows title, count, countdown, labels and a join button', () => {
     const html = renderToString(<RoomCard room={room} picks={['sport']} onOpen={() => {}} />)
     expect(html).toContain('Cup final, live')
-    expect(html).toContain('12 posting')
+    expect(html).toContain('12 have posted')
     expect(html).toContain('In your Sport picks')
     expect(html).toContain('left')
     expect(html).toContain('13+')

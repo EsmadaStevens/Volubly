@@ -1,7 +1,7 @@
 import AuthGate from './components/AuthGate'
 import { useHash } from './hooks/useHash'
 import HomePage from './pages/HomePage'
-import RoomPlaceholder from './pages/RoomPlaceholder'
+import RoomPage from './pages/RoomPage'
 import AiSpike from './spike/AiSpike'
 
 export default function App() {
@@ -19,8 +19,8 @@ export default function App() {
   return (
     <AuthGate>
       {(session) => {
-        const room = /^#room\/([A-Za-z0-9]+)$/.exec(hash)
-        return room ? <RoomPlaceholder roomId={room[1]} /> : <HomePage session={session} />
+        const room = /^#room\/([A-Za-z0-9]+)(\/demo)?$/.exec(hash)
+        return room ? <RoomPage roomId={room[1]} session={session} demo={!!room[2]} /> : <HomePage session={session} />
       }}
     </AuthGate>
   )

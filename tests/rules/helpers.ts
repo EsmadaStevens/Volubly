@@ -8,6 +8,11 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
+import { initializeApp, deleteApp } from 'firebase/app'
+import type { FirebaseApp } from 'firebase/app'
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
+import type { Firestore } from 'firebase/firestore'
+
 export { assertFails, assertSucceeds }
 
 const __filename = fileURLToPath(import.meta.url)
@@ -29,6 +34,9 @@ export async function getEnv(): Promise<RulesTestEnvironment> {
 }
 
 export async function teardown(): Promise<void> {
+  if (_adminApp) await deleteApp(_adminApp)
+  _adminApp = undefined
+  _adminFs = undefined
   await _env?.cleanup()
   _env = undefined
 }
@@ -56,13 +64,21 @@ export async function unauthDb() {
   return env.unauthenticatedContext().firestore()
 }
 
-/** Bypass Security Rules — use only for seeding test data */
-export async function adminDb() {
-  const env = await getEnv()
-  let db!: ReturnType<RulesTestEnvironment['unauthenticatedContext']>['firestore']
-  await env.withSecurityRulesDisabled(ctx => {
-    db = ctx.firestore()
-    return Promise.resolve()
-  })
-  return db
+let _adminApp: FirebaseApp | undefined
+let _adminFs: Firestore | undefined
+
+/**
+ * Bypass Security Rules - use only for seeding and reading back test data.
+ * env.withSecurityRulesDisabled() disposes its context (and terminates the client)
+ * as soon as its callback returns, so a handle returned from it is unusable.
+ * The emulator accepts the literal token "owner" as a rules bypass, so build a
+ * long-lived client with that token instead.
+ */
+export async function adminDb(): Promise<Firestore> {
+  await getEnv()
+  if (_adminFs) return _adminFs
+  _adminApp = initializeApp({ projectId: 'volubly-test' }, 'volubly-admin')
+  _adminFs = getFirestore(_adminApp)
+  connectFirestoreEmulator(_adminFs, '127.0.0.1', 8080, { mockUserToken: 'owner' })
+  return _adminFs
 }

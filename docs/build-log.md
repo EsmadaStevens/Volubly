@@ -15,3 +15,10 @@
 - Offline: on-device still answers. Cloud fails after about 16 s.
 - Decisions: warm the model after sign-in, check connectivity before a cloud call,
   ask the model for a verdict and category only and let code supply the message.
+
+## 2026-11-20: Room limit (room-limit spec)
+- Each account can have at most 2 active rooms. Enforcement is in `firestore.rules` only: each user has two slot documents, `roomSlots/{uid}_1` and `roomSlots/{uid}_2`, and a room can only be created in the same batch as a slot write.
+- No Cloud Functions are used and the project stays on the Spark plan.
+- The limit limits spam, not a hard guarantee: anonymous accounts can be recreated, and a recreated account gets new slots.
+- The real client `createRoom` is denied by the new rules until it is updated to write the room and a slot in one batch. This is expected. The client update is separate work.
+- Latest emulator run: 3 files, 44 tests passing, including the two required fast-check properties (numRuns 20).
