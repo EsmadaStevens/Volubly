@@ -12,6 +12,8 @@ import DemoTools from '../components/DemoTools'
 import { simulatedChatter, simulatedFlagged, simulatedSpoilers } from '../lib/demoData'
 import DelayControl from '../components/DelayControl'
 import { useDelaySetting, useDelayShield } from '../hooks/useDelayShield'
+import { useGhostCheck } from '../hooks/useGhostCheck'
+import GhostStatus from '../components/GhostStatus'
 import type { MessagesState } from '../hooks/useMessages'
 import { formatTimeLeft, isExpired, msLeft } from '../lib/roomUtils'
 import { scrollToLatest } from '../lib/scrollUtils'
@@ -58,9 +60,11 @@ function RoomBody({
   const unseen = useUnseen(messages, session.uid)
   const [delay, setDelay] = useDelaySetting()
   const held = useDelayShield(messages, session.uid, delay)
+  const ghost = useGhostCheck()
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col">
+    <div className="mx-auto max-w-md lg:flex lg:max-w-6xl lg:justify-center lg:gap-6 lg:px-4">
+     <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:max-w-3xl lg:border-x lg:border-line/20">
       <header className="sticky top-0 z-10 space-y-1 border-b border-line/40 bg-night px-4 py-3">
         <a href="#" className="inline-block text-sm font-semibold text-spark">
           Back to rooms
@@ -78,7 +82,7 @@ function RoomBody({
             {room.postingParticipantCount === 0 ? 'No one has posted yet' : `${room.postingParticipantCount} have posted`}
           </span>
         </div>
-        <details>
+        <details className="lg:hidden">
           <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-xs font-semibold text-spark">
             {delay === 0 ? 'Delay Shield: off' : `Delay Shield: ${delay} s behind`}
           </summary>
@@ -110,8 +114,19 @@ function RoomBody({
           openedAtMs={room.openedAtMs}
           expiresAt={expiresAt}
           createdAtMs={session.createdAtMs}
+          ghost={ghost}
         />
       </div>
+     </div>
+
+     {/* Wide screens only: the tools sit beside the chat, so the demo can show them while chatting. */}
+     <aside className="hidden w-[340px] shrink-0 lg:block">
+      <div className="sticky top-0 max-h-screen space-y-4 overflow-y-auto py-4">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-accent">Room tools</h2>
+        <DelayControl value={delay} onChange={setDelay} />
+        <GhostStatus ghost={ghost} defaultOpen />
+      </div>
+     </aside>
     </div>
   )
 }

@@ -6,7 +6,7 @@ import type { Purpose } from '../lib/inferenceLog'
 const PURPOSES: Purpose[] = ['send_check', 'read_check', 'catch_up']
 const SHOWN = 5
 
-export default function GhostStatus({ ghost }: { ghost: GhostCheck }) {
+export default function GhostStatus({ ghost, defaultOpen = false }: { ghost: GhostCheck; defaultOpen?: boolean }) {
   const { snap, cloudConsent, setCloudConsent, progress, turnOnDevice } = ghost
   const now = useNow()
   const online = typeof navigator === 'undefined' ? true : navigator.onLine
@@ -18,7 +18,7 @@ export default function GhostStatus({ ghost }: { ghost: GhostCheck }) {
   else if (cloudConsent && online) pill = 'Cloud check on'
 
   return (
-    <details className="text-xs text-muted">
+    <details className="text-xs text-muted" open={defaultOpen || undefined}>
       <summary className="inline-flex min-h-[44px] cursor-pointer items-center rounded-full bg-raised px-3 font-semibold text-plum">
         {pill}
       </summary>

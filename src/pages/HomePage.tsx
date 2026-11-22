@@ -36,7 +36,7 @@ export default function HomePage({ session }: { session: ReadySession }) {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-md px-4 pb-10">
+    <div className="mx-auto min-h-screen max-w-md px-4 pb-10 md:max-w-3xl lg:max-w-6xl">
       <header className="flex items-center justify-between py-4">
         <div className="flex items-center gap-2">
           <LiveDot />
@@ -100,18 +100,22 @@ export default function HomePage({ session }: { session: ReadySession }) {
         {split && split.picks.length > 0 && (
           <div className="space-y-3">
             <h2 className="text-sm font-bold uppercase tracking-wide text-accent">Your picks</h2>
-            {split.picks.map((r) => (
-              <RoomCard key={r.id} room={r} picks={picks} onOpen={open} />
-            ))}
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {split.picks.map((r) => (
+                <RoomCard key={r.id} room={r} picks={picks} onOpen={open} />
+              ))}
+            </div>
           </div>
         )}
 
         {split && split.other.length > 0 && (
           <div className="space-y-3">
             {picks.length > 0 && <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Also live</h2>}
-            {split.other.map((r) => (
-              <RoomCard key={r.id} room={r} picks={picks} onOpen={open} />
-            ))}
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {split.other.map((r) => (
+                <RoomCard key={r.id} room={r} picks={picks} onOpen={open} />
+              ))}
+            </div>
           </div>
         )}
       </section>

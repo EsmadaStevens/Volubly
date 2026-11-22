@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { Timestamp } from 'firebase/firestore'
-import { useGhostCheck } from '../hooks/useGhostCheck'
+import type { GhostCheck } from '../hooks/useGhostCheck'
 import { explainSendError, preCheckSend } from '../lib/messageUtils'
 import { sendMessage } from '../lib/sendMessage'
 import { MESSAGE_MAX_LENGTH, MESSAGE_MIN_INTERVAL_S } from '../types'
@@ -13,14 +13,15 @@ export default function MessageComposer({
   openedAtMs,
   expiresAt,
   createdAtMs,
+  ghost,
 }: {
   roomId: string
   uid: string
   openedAtMs: number
   expiresAt: Timestamp
   createdAtMs: number
+  ghost: GhostCheck
 }) {
-  const ghost = useGhostCheck()
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -137,7 +138,9 @@ export default function MessageComposer({
         </button>
       </div>
       <div className="flex items-start justify-between gap-2">
-        <GhostStatus ghost={ghost} />
+        <div className="lg:hidden">
+          <GhostStatus ghost={ghost} />
+        </div>
         <p className="pt-3 text-xs text-muted">
           {text.length}/{MESSAGE_MAX_LENGTH}
         </p>

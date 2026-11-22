@@ -18,9 +18,14 @@ describe('redact: finds the usual leaks', () => {
     expect(redact('PIN: 4821').redacted).toBe('PIN: [password hidden]')
   })
   it('API keys and tokens', () => {
-    expect(kinds('key AIzaSyA1234567890abcdefghijklmnopqrstuv')).toEqual(['key'])
-    expect(kinds('sk-abcdefghijklmnopqrstuvwx')).toEqual(['key'])
-    expect(kinds('ghp_abcdefghijklmnopqrstuvwxyz0123456789')).toEqual(['key'])
+    // Built from pieces at run time, so no key-shaped text sits in the source for secret scanners to flag.
+    // These are made-up strings, not real credentials.
+    const fakeGoogle = ['AI', 'za', 'x'.repeat(35)].join('')
+    const fakeSecretKey = ['s', 'k', '-', 'y'.repeat(24)].join('')
+    const fakeGithub = ['g', 'hp', '_', 'z'.repeat(36)].join('')
+    expect(kinds(`key ${fakeGoogle}`)).toEqual(['key'])
+    expect(kinds(fakeSecretKey)).toEqual(['key'])
+    expect(kinds(fakeGithub)).toEqual(['key'])
     expect(kinds('token a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8')).toEqual(['key'])
   })
   it('card numbers only when the checksum is valid', () => {
