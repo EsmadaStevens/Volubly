@@ -92,6 +92,290 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- whisper-threads helpers ----
+    // The age band is self-declared, so pairing by band is best-effort protection, not a guarantee.
+    // The slot cap limits spam, not a hard guarantee: anonymous accounts can be recreated.
+    // expiresAt is only a cleanup hint. No allow decision reads a stored expiresAt for access.
+
+    function wPath(id) {
+      return /databases/$(database)/documents/whispers/$(id);
+    }
+
+    function uPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function blockPath(blocker, blocked) {
+      return /databases/$(database)/documents/users/$(blocker)/blocked/$(blocked);
+    }
+
+    function bandOf(uid) {
+      return get(uPath(uid)).data.ageBandLabel;
+    }
+
+    function bandsPair(a, b) {
+      let x = bandOf(a);
+      return x == bandOf(b) && x in ['13_17', '18_plus'];
+    }
+
+    function isMember(w) {
+      return isAuthed() && request.auth.uid in w.memberIds;
+    }
+
+    function isOpenThread(w) {
+      return w.status == 'accepted'
+        && w.acceptedAt != null
+        && request.time < w.acceptedAt + duration.value(3600, 's');
+    }
+
+    function isPending(w) {
+      return w.status == 'requested'
+        && request.time < w.createdAt + duration.value(900, 's');
+    }
+
+    function isOver(w) {
+      return w.status in ['declined', 'ended']
+        || (w.status == 'requested' && request.time >= w.createdAt + duration.value(900, 's'))
+        || (w.status == 'accepted' && request.time >= w.acceptedAt + duration.value(3600, 's'));
+    }
+
+    function slotIdFor(uid, n) {
+      return n == 1 ? uid + '_1' : (n == 2 ? uid + '_2' : uid + '_3');
+    }
+
+    function whisperSlotPath(slotId) {
+      return /databases/$(database)/documents/whisperSlots/$(slotId);
+    }
+
+    // The slot, as it will be after the batch, points at this Whisper and belongs to the caller.
+    function whisperSlotWritten(slotId, wid) {
+      let p = whisperSlotPath(slotId);
+      return existsAfter(p)
+        && getAfter(p).data.whisperId == wid
+        && getAfter(p).data.userId == request.auth.uid
+        && getAfter(p).data.openedAt == request.time;
+    }
+
+    function whisperCreateOk(wid) {
+      let d = request.resource.data;
+      return isAuthed()
+        && d.keys().hasOnly([
+             'inviterId', 'inviteeId', 'memberIds', 'status', 'createdAt', 'acceptedAt',
+             'endedBy', 'inviterSlot', 'inviteeSlot', 'expiresAt'
+           ])
+        && d.keys().hasAll([
+             'inviterId', 'inviteeId', 'memberIds', 'status', 'createdAt', 'acceptedAt',
+             'endedBy', 'inviterSlot', 'inviteeSlot', 'expiresAt'
+           ])
+        && d.inviterId == request.auth.uid
+        && d.inviteeId is string
+        && d.inviteeId != d.inviterId
+        && d.memberIds == [d.inviterId, d.inviteeId]
+        && d.status == 'requested'
+        && d.createdAt == request.time
+        && d.acceptedAt == null
+        && d.endedBy == null
+        && d.inviteeSlot == null
+        && d.inviterSlot is int
+        && d.inviterSlot in [1, 2, 3]
+        && d.expiresAt is timestamp
+        && d.expiresAt >= request.time + duration.value(4500, 's')
+        && d.expiresAt <= request.time + duration.value(7200, 's')
+        && bandsPair(d.inviterId, d.inviteeId)
+        && !exists(blockPath(d.inviteeId, d.inviterId))
+        && !exists(blockPath(d.inviterId, d.inviteeId))
+        && whisperSlotWritten(slotIdFor(d.inviterId, d.inviterSlot), wid);
+    }
+
+    function changesOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function isAccept(wid) {
+      let r = resource.data;
+      let n = request.resource.data;
+      return isAuthed()
+        && request.auth.uid == r.inviteeId
+        && isPending(r)
+        && r.inviteeSlot == null
+        && n.status == 'accepted'
+        && changesOnly(['status', 'acceptedAt', 'inviteeSlot'])
+        && n.acceptedAt == request.time
+        && n.inviteeSlot is int
+        && n.inviteeSlot in [1, 2, 3]
+        && bandsPair(r.inviterId, r.inviteeId)
+        && !exists(blockPath(r.inviterId, r.inviteeId))
+        && !exists(blockPath(r.inviteeId, r.inviterId))
+        && whisperSlotWritten(slotIdFor(r.inviteeId, n.inviteeSlot), wid);
+    }
+
+    function isDecline() {
+      return isAuthed()
+        && request.auth.uid == resource.data.inviteeId
+        && resource.data.status == 'requested'
+        && request.resource.data.status == 'declined'
+        && changesOnly(['status']);
+    }
+
+    // The inviter ends a pending invite.
+    function isCancel() {
+      return isAuthed()
+        && request.auth.uid == resource.data.inviterId
+        && resource.data.status == 'requested'
+        && request.resource.data.status == 'ended'
+        && request.resource.data.endedBy == request.auth.uid
+        && changesOnly(['status', 'endedBy']);
+    }
+
+    // Either member ends an accepted thread. Allowed after the hour too.
+    function isEnd() {
+      return isMember(resource.data)
+        && resource.data.status == 'accepted'
+        && request.resource.data.status == 'ended'
+        && request.resource.data.endedBy == request.auth.uid
+        && changesOnly(['status', 'endedBy']);
+    }
+
+    function ownsWhisperSlotId(slotId) {
+      return isAuthed()
+        && slotId in [request.auth.uid + '_1', request.auth.uid + '_2', request.auth.uid + '_3'];
+    }
+
+    // The Whisper, as it will be after the batch, is created or accepted by the caller in this
+    // batch (createdAt / acceptedAt == request.time proves that) and names this exact slot.
+    function slotCoversWriteIn(slotId, wid, slotExpiresAt) {
+      let wp = wPath(wid);
+      let w = getAfter(wp).data;
+      return existsAfter(wp)
+        && w.expiresAt == slotExpiresAt
+        && ((w.inviterId == request.auth.uid
+              && w.inviterSlot is int
+              && slotId == slotIdFor(request.auth.uid, w.inviterSlot)
+              && w.createdAt == request.time)
+            || (w.inviteeId == request.auth.uid
+              && w.inviteeSlot is int
+              && slotId == slotIdFor(request.auth.uid, w.inviteeSlot)
+              && w.acceptedAt == request.time));
+    }
+
+    function validWhisperSlot(slotId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['userId', 'whisperId', 'openedAt', 'expiresAt'])
+        && d.keys().hasAll(['userId', 'whisperId', 'openedAt', 'expiresAt'])
+        && d.userId == request.auth.uid
+        && d.whisperId is string
+        && d.whisperId.size() >= 1
+        && d.openedAt == request.time
+        && slotCoversWriteIn(slotId, d.whisperId, d.expiresAt);
+    }
+
+    // A slot may be reused when the Whisper it points to is over, or no longer exists (TTL cleanup).
+    function previousWhisperOver(prevId) {
+      let p = wPath(prevId);
+      return !exists(p) || isOver(get(p).data);
+    }
+
+    function whisperRateLimitPath(wid, uid) {
+      return /databases/$(database)/documents/whispers/$(wid)/rateLimits/$(uid);
+    }
+
+    function whisperMessageOk(wid, mid) {
+      let w = get(wPath(wid)).data;
+      let d = request.resource.data;
+      let other = w.inviterId == request.auth.uid ? w.inviteeId : w.inviterId;
+      let rl = whisperRateLimitPath(wid, request.auth.uid);
+      return isMember(w)
+        && isOpenThread(w)
+        && d.keys().hasOnly(['messageId', 'senderId', 'body', 'sentAt', 'whisperId', 'expiresAt'])
+        && d.keys().hasAll(['messageId', 'senderId', 'body', 'sentAt', 'whisperId', 'expiresAt'])
+        && d.senderId == request.auth.uid
+        && d.messageId == mid
+        && d.whisperId == wid
+        && d.body is string
+        && d.body.size() >= 1
+        && d.body.size() <= 280
+        && d.sentAt == request.time
+        && d.expiresAt == w.expiresAt
+        && !exists(blockPath(other, request.auth.uid))
+        && getAfter(rl).data.lastMessageAt == request.time
+        && (!exists(rl) || get(rl).data.lastMessageAt < request.time - duration.value(3, 's'))
+        && (!isInProbation() || hasNoUrl(d.body));
+    }
+
+    function whisperRateLimitCreateOk(wid, uid) {
+      let w = get(wPath(wid)).data;
+      let d = request.resource.data;
+      return isAuthed()
+        && request.auth.uid == uid
+        && isMember(w)
+        && isOpenThread(w)
+        && d.keys().hasOnly(['userId', 'lastMessageAt', 'expiresAt'])
+        && d.keys().hasAll(['userId', 'lastMessageAt', 'expiresAt'])
+        && d.userId == uid
+        && d.lastMessageAt == request.time
+        && d.expiresAt == w.expiresAt;
+    }
+
+    function whisperRateLimitUpdateOk(wid, uid) {
+      let w = get(wPath(wid)).data;
+      let d = request.resource.data;
+      return isAuthed()
+        && request.auth.uid == uid
+        && isMember(w)
+        && isOpenThread(w)
+        && d.keys().hasOnly(['userId', 'lastMessageAt', 'expiresAt'])
+        && d.keys().hasAll(['userId', 'lastMessageAt', 'expiresAt'])
+        && d.userId == resource.data.userId
+        && d.lastMessageAt == request.time
+        && d.expiresAt == resource.data.expiresAt;
+    }
+
+    function validBlock(owner, otherUid) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['blockedId', 'blockedAt'])
+        && d.keys().hasAll(['blockedId', 'blockedAt'])
+        && d.blockedId is string
+        && d.blockedId == otherUid
+        && d.blockedId != owner
+        && d.blockedAt == request.time;
+    }
+
+    match /whisperSlots/{slotId} {
+      allow get:    if ownsWhisperSlotId(slotId);
+      allow list:   if isAuthed() && resource.data.userId == request.auth.uid;
+      allow create: if ownsWhisperSlotId(slotId)
+                    && validWhisperSlot(slotId);
+      allow update: if ownsWhisperSlotId(slotId)
+                    && request.resource.data.whisperId != resource.data.whisperId
+                    && validWhisperSlot(slotId)
+                    && previousWhisperOver(resource.data.whisperId);
+      allow delete: if false;
+    }
+
+    match /whispers/{whisperId} {
+      allow get:    if isAuthed() && isMember(resource.data);
+      allow list:   if isAuthed() && isMember(resource.data);
+      allow create: if whisperCreateOk(whisperId);
+      allow update: if isAccept(whisperId) || isDecline() || isCancel() || isEnd();
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read:   if isAuthed()
+                      && isMember(get(wPath(whisperId)).data)
+                      && isOpenThread(get(wPath(whisperId)).data);
+        allow create: if whisperMessageOk(whisperId, messageId);
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      match /rateLimits/{userId} {
+        allow read:   if isAuthed() && request.auth.uid == userId;
+        allow create: if whisperRateLimitCreateOk(whisperId, userId);
+        allow update: if whisperRateLimitUpdateOk(whisperId, userId);
+        allow delete: if false;
+      }
+    }
+
     match /publicProfiles/{userId} {
       allow read:   if isAuthed();
       allow create: if isAuthed()
@@ -126,6 +410,14 @@ service cloud.firestore {
         && request.resource.data.createdAt    == resource.data.createdAt
         && request.resource.data.ageBandLabel == resource.data.ageBandLabel;
       allow delete: if false;
+
+      // Blocks are private: only the blocker can read or change them.
+      match /blocked/{otherUid} {
+        allow read:   if isAuthed() && request.auth.uid == userId;
+        allow create: if isAuthed() && request.auth.uid == userId && validBlock(userId, otherUid);
+        allow update: if isAuthed() && request.auth.uid == userId && validBlock(userId, otherUid);
+        allow delete: if isAuthed() && request.auth.uid == userId;
+      }
     }
 
     match /rooms/{roomId} {

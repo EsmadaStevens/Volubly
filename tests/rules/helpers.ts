@@ -58,6 +58,12 @@ export async function userBDb() {
   return env.authenticatedContext('userB', { ageBandLabel: '18_plus' }).firestore()
 }
 
+/** Firestore client authenticated as any uid. The age band the rules use comes from the seeded users document. */
+export async function userDb(uid: string) {
+  const env = await getEnv()
+  return env.authenticatedContext(uid).firestore()
+}
+
 /** Unauthenticated Firestore client */
 export async function unauthDb() {
   const env = await getEnv()
