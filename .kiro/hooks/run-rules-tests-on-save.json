@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Run emulator rules tests on save",
+      "trigger": "PostFileSave",
+      "description": "Runs npm run test:emulator whenever firestore.rules or any file under tests/rules is saved.",
+      "matcher": "firestore\\.rules$|tests[\\\\/]rules[\\\\/]",
+      "action": {
+        "type": "command",
+        "command": "npm run test:emulator",
+        "timeout": 600
+      }
+    }
+  ]
+}

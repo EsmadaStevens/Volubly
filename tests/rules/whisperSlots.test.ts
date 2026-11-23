@@ -24,6 +24,7 @@ import {
 } from './helpers.js'
 import {
   AGES,
+  acceptBatch,
   inviteBatch,
   seedUser,
   seedWhisper,
@@ -329,5 +330,45 @@ describe('slot privacy and immutability', () => {
     await seedHeld()
     await assertFails(deleteDoc(doc(await userDb('bob'), 'whisperSlots', 'alice_1')))
     expect(await docExists('whisperSlots', 'alice_1')).toBe(true)
+  })
+})
+
+describe('a second slot cannot be written for the same Whisper (added after a mutation check)', () => {
+  // Found by mutation: removing the slot-side "slot id must be the one the Whisper names" clause
+  // left every test green, because the Whisper side already forces the named slot to be written.
+  // Nothing then stopped an extra slot pointing at the same Whisper from riding along.
+
+  it('invite batch with an extra slot for the same Whisper denied; the named slot alone allowed', async () => {
+    const db = await userDb('alice')
+    const bad = invite(db, { inviterSlot: 1 })
+    bad.set(doc(db, 'whisperSlots', 'alice_2'), {
+      userId: 'alice',
+      whisperId: 'w1',
+      openedAt: serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(Date.now() + 90 * MIN_MS),
+    })
+    await assertFails(bad.commit())
+    expect(await docExists('whispers', 'w1')).toBe(false)
+    expect(await docExists('whisperSlots', 'alice_2')).toBe(false)
+
+    await assertSucceeds(invite(db, { inviterSlot: 1 }).commit())
+  })
+
+  it('accept batch with an extra slot for the same Whisper denied; the named slot alone allowed', async () => {
+    const admin = await adminDb()
+    const expiresAt = await seedWhisper(admin, 'w1', {
+      inviterId: 'alice', inviteeId: 'bob', status: 'requested',
+      createdAgeS: AGES.pendingValidS, inviterSlot: 1,
+    })
+    const db = await userDb('bob')
+    const bad = await acceptBatch(db, { inviteeId: 'bob', whisperId: 'w1', inviteeSlot: 1, expiresAt })
+    bad.set(doc(db, 'whisperSlots', 'bob_2'), {
+      userId: 'bob', whisperId: 'w1', openedAt: serverTimestamp(), expiresAt,
+    })
+    await assertFails(bad.commit())
+    expect(await docExists('whisperSlots', 'bob_1')).toBe(false)
+    expect(await docExists('whisperSlots', 'bob_2')).toBe(false)
+
+    await assertSucceeds((await acceptBatch(db, { inviteeId: 'bob', whisperId: 'w1', inviteeSlot: 1, expiresAt })).commit())
   })
 })

@@ -22,3 +22,14 @@
 - The limit limits spam, not a hard guarantee: anonymous accounts can be recreated, and a recreated account gets new slots.
 - The real client `createRoom` is denied by the new rules until it is updated to write the room and a slot in one batch. This is expected. The client update is separate work.
 - Latest emulator run: 3 files, 44 tests passing, including the two required fast-check properties (numRuns 20).
+## 2026-11-20: Whisper threads (whisper-threads spec)
+- Kiro generated the spec (requirements, design with a lookup-count table, task list), the rules for `whispers`, `whisperSlots`, whisper messages, rate limits and `users/{uid}/blocked`, and the emulator tests under `tests/rules` (example tests per area, a lookup-budget file, four fast-check properties, and a pure-model invariants file).
+- A whisper thread is a private chat between two people. A pending invite can be accepted for 15 minutes. After acceptance the thread is open for 1 hour, computed from `acceptedAt`. `expiresAt` is only a cleanup hint and no rule trusts it.
+- Enforcement is in `firestore.rules` only. No Cloud Functions are used and the project stays on the Spark plan. Nothing was deployed.
+- The age band is self-declared. The rules pair people only when the stored bands match and are not under 13, at invite and at accept. That is best-effort protection, not a guarantee.
+- A person can have at most 3 open whispers, using slot documents `whisperSlots/{uid}_{n}`. This limits spam, not a hard guarantee: anonymous accounts can be recreated, and a recreated account gets new slots.
+- Design change made for the lookup budget: the Whisper carries `inviterSlot` and `inviteeSlot`, so the rules check one slot instead of trying three. Worst-case batches count 10 of 20 lookups, and the worst-case tests pass.
+- A block stops messages from the blocked person in a thread. Denied invites, accepts and messages all look like a plain permission-denied.
+- Only the two people can read a thread through the app. It is not end-to-end encrypted. Messages are stored in Firestore.
+- Mutation check: five deliberate rule breaks (block check on messages, band check at accept, slot reuse condition, one-hour limit, slot match at accept). Four were caught at once. Removing the slot-side "slot id must match the named slot" clause left every test green, so two tests were added (an extra slot for the same Whisper in an invite batch and in an accept batch). The accept variant catches it.
+- The real client is not updated by this spec. The client is built separately.

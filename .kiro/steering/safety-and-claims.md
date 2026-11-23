@@ -23,6 +23,12 @@
 - Rooms carry a maturity label set by the host and checked by rules.
 - Self-declared age can be false. Never say the app is "child-safe". Say what it does.
 - Explain blocked actions to the user in plain words.
+- Whisper threads (private chat between exactly two people, open 1 hour after the invitee accepts): the rules
+  pair people only when their stored age band matches and is not under 13, at invite and again at accept. The
+  age band is self-declared, so this is best-effort protection, not a guarantee. A person can have at most 3
+  open whispers; this limits spam, not a hard guarantee, because anonymous accounts can be recreated and get
+  new slots. A block stops the blocked person's messages. Only the two people can read a thread through the
+  app. It is not end-to-end encrypted. A denied invite looks the same whatever the cause.
 
 ## Claims we must NOT make anywhere (UI, README, video, write-ups)
 End-to-end encryption, "RAM only / no storage", "zero logs", "IP masked", "100% protected", "hardware verified", "child-safe", unmeasured latency numbers, "no algorithm" (say "no engagement-based feed").
