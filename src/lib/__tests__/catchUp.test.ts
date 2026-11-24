@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
-import { buildCatchUpPrompt, ON_DEVICE_LIMIT, parseSummary, planCatchUp, runCatchUp, takeLatest } from '../catchUp'
+import { bulletsFor, buildCatchUpPrompt, MAX_MESSAGES, coveredCount, labelsFor, ON_DEVICE_LIMIT, parseSummary, planCatchUp, restoreNames, runCatchUp, takeLatest } from '../catchUp'
 import type { DeviceState } from '../draftCheck'
 import type { InferenceEvent } from '../inferenceLog'
 
@@ -132,5 +132,79 @@ describe('runCatchUp', () => {
     const log = JSON.stringify(events)
     expect(log).not.toContain('SECRETMESSAGE')
     expect(log).not.toContain('SECRETSUMMARY')
+  })
+})
+
+
+describe('restoreNames', () => {
+  const items = [
+    { senderId: 'u1', body: 'hi', name: 'Human_1' },
+    { senderId: 'u2', body: 'yo', name: 'Human_2' },
+    { senderId: 'u1', body: 'again', name: 'Human_1' },
+  ]
+
+  it('puts usernames back in place of P1 and P2, on this device only', () => {
+    expect(restoreNames(['P1 said hi and P2 replied.'], items)).toEqual(['Human_1 said hi and Human_2 replied.'])
+  })
+
+  it('never sends the names: the prompt only has labels', () => {
+    const p = buildCatchUpPrompt(items)
+    expect(p).not.toContain('Human_1')
+    expect(p).not.toContain('Human_2')
+    expect(p).toContain('P1: hi')
+  })
+
+  it('uses the same labels as the prompt, in order of first appearance', () => {
+    expect([...labelsFor(items).values()]).toEqual(['P1', 'P2'])
+  })
+
+  it('leaves an unknown label, and a label with no known name, as it is', () => {
+    expect(restoreNames(['P9 is unknown.'], items)).toEqual(['P9 is unknown.'])
+    expect(restoreNames(['P1 spoke.'], [{ senderId: 'u1', body: 'x' }])).toEqual(['P1 spoke.'])
+  })
+
+  it('does not rewrite words that merely start with P1 and does not chain replacements', () => {
+    const named = [{ senderId: 'u1', body: 'x', name: 'P2' }, { senderId: 'u2', body: 'y', name: 'Zed' }]
+    expect(restoreNames(['P1 and P2', 'P10x'], named)).toEqual(['P2 and Zed', 'P10x'])
+  })
+})
+
+
+describe('how much a catch-up covers', () => {
+  const many = (n: number, len = 100) => Array.from({ length: n }, (_, i) => ({ senderId: `u${i % 5}`, body: `m${i} `.padEnd(len, 'x') }))
+
+  it('covers everything when it all fits', () => {
+    expect(coveredCount(many(20))).toBe(20)
+  })
+
+  it('covers only the newest messages when there are too many, and says how many', () => {
+    const items = many(200)
+    const n = coveredCount(items)
+    expect(n).toBeGreaterThan(30)
+    expect(n).toBeLessThan(200)
+    const prompt = buildCatchUpPrompt(items)
+    expect(prompt).toContain('m199 ') // the newest is in
+    expect(prompt).not.toContain('m0 ') // the oldest was left out
+  })
+
+  it('never looks at more than the newest 100 messages, and asks for 5 bullets on big backlogs', () => {
+    const items = Array.from({ length: 300 }, (_, i) => ({ senderId: `u${i % 5}`, body: `m${i}` }))
+    expect(coveredCount(items)).toBe(MAX_MESSAGES)
+    expect(bulletsFor(10)).toBe(3)
+    expect(bulletsFor(120)).toBe(5)
+    expect(buildCatchUpPrompt(items)).toContain('at most 5 short bullet points')
+  })
+  it('reports covered and total on the result', async () => {
+    const items = many(200)
+    const deps = {
+      generate: async () => ({ text: '- Things happened.', source: 'in_cloud' as const }),
+      now: () => 0,
+      record: () => {},
+      schedule: undefined,
+    }
+    const r = await runCatchUp('cloud', items, 'r', deps)
+    expect(r.total).toBe(200)
+    expect(r.covered).toBe(coveredCount(items))
+    expect(r.covered).toBeLessThan(r.total)
   })
 })

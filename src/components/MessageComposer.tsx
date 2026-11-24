@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { Timestamp } from 'firebase/firestore'
 import type { GhostCheck } from '../hooks/useGhostCheck'
+import { insertAt } from '../lib/emoji'
+import { completeMention, mentionQuery, suggestNames } from '../lib/mentions'
 import { explainSendError, preCheckSend } from '../lib/messageUtils'
 import { sendMessage } from '../lib/sendMessage'
 import { MESSAGE_MAX_LENGTH, MESSAGE_MIN_INTERVAL_S } from '../types'
+import EmojiPicker from './EmojiPicker'
 import GhostStatus from './GhostStatus'
 import ReviewPanel, { type ReviewState } from './ReviewPanel'
 
@@ -14,6 +17,8 @@ export default function MessageComposer({
   expiresAt,
   createdAtMs,
   ghost,
+  names = [],
+  myName,
 }: {
   roomId: string
   uid: string
@@ -21,6 +26,9 @@ export default function MessageComposer({
   expiresAt: Timestamp
   createdAtMs: number
   ghost: GhostCheck
+  /** Usernames of people in this room, for @mention suggestions. */
+  names?: string[]
+  myName?: string
 }) {
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -29,6 +37,9 @@ export default function MessageComposer({
   const [review, setReview] = useState<ReviewState | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [cooling, setCooling] = useState(false)
+  const [caret, setCaret] = useState(0)
+  const [wakeNote, setWakeNote] = useState(false)
+  const box = useRef<HTMLTextAreaElement>(null)
   const draftId = useRef<string | null>(null)
   const lastSent = useRef<number | null>(null)
   const coolTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -74,8 +85,10 @@ export default function MessageComposer({
 
     const draft = text
     setChecking(true)
+    setWakeNote(ghost.needsWake())
     const r = await ghost.review(draft)
     setChecking(false)
+    setWakeNote(false)
     if (r.plan.kind === 'review') {
       setReview({ redactedText: r.plan.redactedText, findingKinds: r.plan.findingKinds, verdict: r.plan.verdict })
       return
@@ -85,8 +98,51 @@ export default function MessageComposer({
     await doSend(draft)
   }
 
+  /** Any change to the draft: clears an old review and gives the next send a fresh id. */
+  function changeText(next: string) {
+    setText(next)
+    setReview(null)
+    setNotice(null)
+    draftId.current = null
+  }
+
+  const mq = mentionQuery(text, Math.min(caret, text.length))
+  const suggestions = mq ? suggestNames(names, mq.query, myName) : []
+
+  function pickMention(name: string) {
+    if (!mq) return
+    const r = completeMention(text, mq, Math.min(caret, text.length), name, MESSAGE_MAX_LENGTH)
+    if (!r) return
+    changeText(r.text)
+    setCaret(r.cursor)
+    const el = box.current
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(r.cursor, r.cursor)
+    })
+  }
+
+  function addEmoji(emoji: string) {
+    const el = box.current
+    const at = el ? [el.selectionStart, el.selectionEnd] : [text.length, text.length]
+    const r = insertAt(text, at[0], at[1], emoji, MESSAGE_MAX_LENGTH)
+    if (!r) return // no room left: the counter already shows why
+    changeText(r.text)
+    // Put the cursor after the emoji and keep typing without a second tap.
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(r.cursor, r.cursor)
+    })
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     ghost.warm()
+    // Tab takes the first suggestion. Enter still sends, so a mention never changes what Enter does.
+    if (e.key === 'Tab' && suggestions.length > 0) {
+      e.preventDefault()
+      pickMention(suggestions[0])
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       void submit()
@@ -96,10 +152,15 @@ export default function MessageComposer({
   const empty = text.trim().length === 0
 
   return (
-    <div className="space-y-2 border-t border-line/40 bg-night p-3">
+    <div className="relative space-y-2 border-t border-line/40 bg-night p-3">
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}
+        </p>
+      )}
+      {checking && wakeNote && (
+        <p role="status" className="text-xs text-muted">
+          Waking the on-device check. The first one after a quiet spell can take up to 15 seconds. Your message hasn't been sent.
         </p>
       )}
       {notice && <p className="text-xs text-muted">{notice}</p>}
@@ -111,15 +172,32 @@ export default function MessageComposer({
           onEdit={() => setReview(null)}
         />
       )}
+      {suggestions.length > 0 && (
+        <ul aria-label="People to mention" className="flex flex-wrap gap-2">
+          {suggestions.map((n) => (
+            <li key={n}>
+              <button
+                type="button"
+                // Keep focus in the box so the keyboard stays open on a phone.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pickMention(n)}
+                className="min-h-[44px] rounded-full bg-raised px-4 text-sm font-semibold text-spark"
+              >
+                @{n}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="flex items-end gap-2">
         <textarea
+          ref={box}
           value={text}
           onChange={(e) => {
-            setText(e.target.value)
-            setReview(null)
-            setNotice(null)
-            draftId.current = null
+            changeText(e.target.value)
+            setCaret(e.target.selectionStart)
           }}
+          onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
           onFocus={ghost.warm}
           maxLength={MESSAGE_MAX_LENGTH}
@@ -128,6 +206,7 @@ export default function MessageComposer({
           placeholder="Say something..."
           className="min-h-[44px] flex-1 resize-none rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink focus:border-accent focus:outline-none"
         />
+        <EmojiPicker onPick={addEmoji} disabled={busy || checking} />
         <button
           type="button"
           onClick={() => void submit()}

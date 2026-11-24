@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useSession } from '../hooks/useSession'
+import LoadingScreen from './LoadingScreen'
 import OnboardingPage from '../pages/OnboardingPage'
 import type { AgeBandLabel, PublicProfile } from '../types'
 
@@ -8,17 +9,15 @@ export interface ReadySession {
   profile: PublicProfile
   ageBand: AgeBandLabel
   createdAtMs: number
+  /** Lets the app show a new name or avatar straight away after the person edits their profile. */
+  setProfile: (profile: PublicProfile) => void
 }
 
 export default function AuthGate({ children }: { children: (session: ReadySession) => ReactNode }) {
-  const { state, retry, completeOnboarding } = useSession()
+  const { state, retry, completeOnboarding, setProfile } = useSession()
 
   if (state.status === 'loading') {
-    return (
-      <main className="flex min-h-screen items-center justify-center p-4">
-        <p className="text-sm text-muted">Loading...</p>
-      </main>
-    )
+    return <LoadingScreen />
   }
 
   if (state.status === 'error') {
@@ -41,5 +40,5 @@ export default function AuthGate({ children }: { children: (session: ReadySessio
     return <OnboardingPage uid={state.uid} onDone={completeOnboarding} />
   }
 
-  return <>{children({ uid: state.uid, profile: state.profile, ageBand: state.ageBand, createdAtMs: state.createdAtMs })}</>
+  return <>{children({ uid: state.uid, profile: state.profile, ageBand: state.ageBand, createdAtMs: state.createdAtMs, setProfile })}</>
 }

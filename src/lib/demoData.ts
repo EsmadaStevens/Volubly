@@ -81,7 +81,7 @@ const CHATTER = [
 const FLAGGED = [
   { senderId: 'sim-b', body: 'call me on 097 123 4567 and I will explain it' },
   { senderId: 'sim-d', body: 'full highlights here www.example.com/clip' },
-  { senderId: 'sim-e', body: 'you are all idiots, the ref was right' },
+  { senderId: 'sim-e', body: 'shut up, nobody asked, the ref was right' },
 ]
 
 function build(bodies: { senderId: string; body: string }[], nowMs: number, startIndex: number): MessageView[] {

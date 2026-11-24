@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { deviceAvailability, prepareDevice } from '../lib/ai'
-import { checkDeps } from '../lib/checkDeps'
+import { checkDeps, onDeviceIsCold, warmOnDevice } from '../lib/checkDeps'
 import { checkDraft, chooseRoute, planSend, type CheckResult, type Plan } from '../lib/draftCheck'
 import { getInferenceSnapshot, setDeviceState, subscribeInference } from '../lib/inferenceLog'
 import { redact, type Redaction } from '../lib/redact'
+import { isWarming, subscribeWarming } from '../lib/warmingState'
 
 const CONSENT_KEY = 'volubly.cloudCheckConsent'
 let warmed = false
@@ -24,6 +25,7 @@ export interface Review {
 
 export function useGhostCheck() {
   const snap = useSyncExternalStore(subscribeInference, getInferenceSnapshot)
+  const warming = useSyncExternalStore(subscribeWarming, isWarming, () => false)
   const [cloudConsent, setConsentState] = useState(readConsent)
   const [progress, setProgress] = useState<number | null>(null)
   const latest = useRef({ device: snap.device, cloudConsent })
@@ -65,11 +67,15 @@ export function useGhostCheck() {
 
   /** Cheap warm-up when the model is already on this device. Needs a user gesture, so call from focus/typing. */
   const warm = useCallback(() => {
-    if (warmed || latest.current.device !== 'ready') return
-    warmed = true
-    prepareDevice().catch(() => {
-      warmed = false
-    })
+    if (latest.current.device !== 'ready') return
+    if (!warmed) {
+      warmed = true
+      prepareDevice().catch(() => {
+        warmed = false
+      })
+    }
+    // Chrome can unload the model after a quiet spell, so wake it again when it has gone cold.
+    if (onDeviceIsCold()) void warmOnDevice()
   }, [])
 
   const review = useCallback(async (draft: string): Promise<Review> => {
@@ -85,7 +91,10 @@ export function useGhostCheck() {
     return { plan: planSend({ draft, redaction, verdict: check.verdict }), check, redaction }
   }, [])
 
-  return { snap, cloudConsent, setCloudConsent, progress, turnOnDevice, warm, review }
+  /** True when an on-device check right now would first have to wake the model (10-15 s). */
+  const needsWake = useCallback(() => latest.current.device === 'ready' && onDeviceIsCold(), [])
+
+  return { snap, cloudConsent, setCloudConsent, progress, turnOnDevice, warm, review, warming, needsWake }
 }
 
 export type GhostCheck = ReturnType<typeof useGhostCheck>

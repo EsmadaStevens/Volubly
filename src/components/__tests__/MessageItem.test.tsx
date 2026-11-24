@@ -24,9 +24,12 @@ describe('MessageItem', () => {
 
   it('starts hidden with a reason and a show button, and does not print the text', () => {
     const html = renderToStaticMarkup(
-      <MessageItem message={msg} profile={{ username: 'Zed', avatarSeed: 'a' }} mine={false} hiddenReason="this might be a threat" />,
+      <MessageItem message={msg} profile={{ username: 'Zed', avatarSeed: 'a' }} mine={false} hiddenReason="This might be a threat." hiddenLabel="Possible threat" />,
     )
-    expect(html).toContain('Hidden: this might be a threat')
+    expect(html).toContain('Message hidden')
+    expect(html).toContain('Possible threat')
+    expect(html).toContain('This might be a threat.')
+    expect(html).toContain('stays hidden until you choose')
     expect(html).toContain('Show message')
     expect(html).not.toContain('hello')
   })
@@ -39,11 +42,22 @@ describe('MessageItem', () => {
   })
 
   it('says it may be wrong for guesses, but not for plain links', () => {
-    const guess = renderToStaticMarkup(<MessageItem message={msg} profile={null} mine={false} hiddenReason="this might be a threat" />)
+    const guess = renderToStaticMarkup(<MessageItem message={msg} profile={null} mine={false} hiddenReason="This might be a threat." />)
     expect(guess).toContain('may be wrong')
-    const link = renderToStaticMarkup(<MessageItem message={msg} profile={null} mine={false} hiddenReason="this message has a link" uncertain={false} />)
-    expect(link).toContain('Hidden: this message has a link.')
+    const link = renderToStaticMarkup(<MessageItem message={msg} profile={null} mine={false} hiddenReason="This message has a link." uncertain={false} />)
+    expect(link).toContain('This message has a link.')
     expect(link).not.toContain('may be wrong')
+  })
+
+  it('highlights @mentions of people in the room, and tells you when it is you', () => {
+    const m = { ...msg, body: 'hey @Kay and @nobody' }
+    const html = renderToStaticMarkup(<MessageItem message={m} profile={null} mine={false} names={['Kay', 'Zed']} myName="Kay" />)
+    expect(html).toContain('Mentions you')
+    expect(html).toContain('>@Kay<')
+    expect(html).not.toContain('>@nobody<')
+    const other = renderToStaticMarkup(<MessageItem message={m} profile={null} mine={false} names={['Kay']} myName="Zed" />)
+    expect(other).not.toContain('Mentions you')
+    expect(other).toContain('>@Kay<')
   })
 
   it('labels simulated messages', () => {

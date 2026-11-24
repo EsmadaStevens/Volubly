@@ -72,5 +72,9 @@ export function useSession() {
     setState({ status: 'ready', uid, profile, ageBand, createdAtMs: Date.now() })
   }, [])
 
-  return { state, retry, completeOnboarding }
+  const setProfile = useCallback((profile: PublicProfile) => {
+    setState((s) => (s.status === 'ready' ? { ...s, profile } : s))
+  }, [])
+
+  return { state, retry, completeOnboarding, setProfile }
 }

@@ -6,22 +6,41 @@ import type { Purpose } from '../lib/inferenceLog'
 const PURPOSES: Purpose[] = ['send_check', 'read_check', 'catch_up']
 const SHOWN = 5
 
-export default function GhostStatus({ ghost, defaultOpen = false }: { ghost: GhostCheck; defaultOpen?: boolean }) {
-  const { snap, cloudConsent, setCloudConsent, progress, turnOnDevice } = ghost
+export default function GhostStatus({
+  ghost,
+  defaultOpen = false,
+  compact = false,
+}: {
+  ghost: GhostCheck
+  defaultOpen?: boolean
+  /** One row, "Ghost-Mode ... status", that opens into the full panel. Used beside the room tools. */
+  compact?: boolean
+}) {
+  const { snap, cloudConsent, setCloudConsent, progress, turnOnDevice, warming } = ghost
   const now = useNow()
   const online = typeof navigator === 'undefined' ? true : navigator.onLine
   const recent = [...snap.events].reverse().slice(0, SHOWN)
 
   let pill = 'AI check off'
   if (progress !== null || snap.device === 'downloading') pill = `Downloading model${progress !== null ? ` ${progress}%` : ''}`
-  else if (snap.device === 'ready') pill = 'Checks on this device'
+  else if (snap.device === 'ready') pill = warming ? 'Waking on-device check...' : 'Checks on this device'
   else if (cloudConsent && online) pill = 'Cloud check on'
+
+  // "AI check off" still has the plain-code checks running, so the compact row calls it "Available".
+  const short = pill === 'AI check off' ? 'Available' : pill
 
   return (
     <details className="text-xs text-muted" open={defaultOpen || undefined}>
-      <summary className="inline-flex min-h-[44px] cursor-pointer items-center rounded-full bg-raised px-3 font-semibold text-plum">
-        {pill}
-      </summary>
+      {compact ? (
+        <summary className="flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-xl bg-surface px-3 font-semibold">
+          <span className="text-sm font-bold text-ink">Ghost-Mode</span>
+          <span className="rounded-full bg-raised px-2.5 py-1 text-plum">{short}</span>
+        </summary>
+      ) : (
+        <summary className="inline-flex min-h-[44px] cursor-pointer items-center rounded-full bg-raised px-3 font-semibold text-plum">
+          {pill}
+        </summary>
+      )}
       <div className="mt-2 space-y-3 rounded-xl bg-surface p-3">
         <p>
           Before you send, we hide phone numbers, emails, passwords and keys using plain code on this device. That
@@ -59,6 +78,23 @@ export default function GhostStatus({ ghost, defaultOpen = false }: { ghost: Gho
             already hidden, is sent to Google's Gemini through Firebase for that check only.
           </span>
         </label>
+
+        <div className="space-y-1 border-t border-line/40 pt-2">
+          <p className="font-bold text-ink">What Ghost-Mode can and can't do</p>
+          <p>
+            Ghost-Mode uses automated checks to find possibly harmful content. It can miss harmful messages and hide
+            harmless ones. You stay in control of what you send and what you show.
+          </p>
+          <p>
+            Hiding happens on your device only. A message hidden for you can still show for someone else, and the other
+            way round.
+          </p>
+          <p>
+            Reading checks for insults, threats and similar need desktop Chrome with the built-in AI. On phones and
+            other browsers only the plain-code checks run (phone numbers, emails, passwords, keys, links). The cloud
+            check, if you allow it, applies only to what you send, never to what you read.
+          </p>
+        </div>
 
         <div className="space-y-2 border-t border-line/40 pt-2">
           <p className="font-bold text-ink">Inference activity</p>

@@ -26,7 +26,7 @@
 
 ## Claims we must NOT make anywhere (UI, README, video, write-ups)
 End-to-end encryption, "RAM only / no storage", "zero logs", "IP masked", "100% protected", "hardware verified", "child-safe", unmeasured latency numbers, "no algorithm" (say "no engagement-based feed").
-Use true statements instead: "Rooms delete after 24 hours", "Only your username and avatar show here", "Checked on your device before it is sent" (only when that is true).
+Use true statements instead: "Rooms end after 24 hours", "Only your username and avatar show here", "Checked on your device before it is sent" (only when that is true).
 
 ## Content to avoid in demos and sample data
 Mental-health rooms with a claimed counsellor, anonymous no-log confession rooms, piracy topics, real brand logos. Plain-text team or broadcaster names are fine. Participants in demo rooms must be clearly labelled as simulated.
