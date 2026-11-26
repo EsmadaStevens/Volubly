@@ -11,12 +11,16 @@ export default function MessageList({
   hidden,
   held,
   uid,
+  names,
+  myName,
 }: {
   state: MessagesState
   hidden: Map<string, GuardReason>
   /** Delay Shield: message id -> milliseconds still held. */
   held: Map<string, number>
   uid: string
+  names?: string[]
+  myName?: string
 }) {
   const messages = state.status === 'ready' ? state.messages : []
   const profiles = useProfiles(messages.filter((m) => !m.simulated).map((m) => m.senderId))
@@ -66,7 +70,10 @@ export default function MessageList({
                 message={m}
                 profile={m.simulated ? SIM_PROFILES[m.senderId] : profiles.get(m.senderId)}
                 mine={m.senderId === uid}
+                names={names}
+                myName={myName}
                 hiddenReason={reason?.text}
+                hiddenLabel={reason?.label}
                 uncertain={reason?.uncertain}
                 revealed={revealed.has(m.id)}
                 onToggle={() => toggle(m.id)}

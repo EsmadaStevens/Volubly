@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import Avatar from '../components/Avatar'
 import { createAccount } from '../lib/account'
-import { ageBandFromBirthDate } from '../lib/ageBand'
+import { ageBandFromBirthDate, looksLikeSlip } from '../lib/ageBand'
 import { newAvatarSeed } from '../lib/avatar'
 import { checkUsername } from '../lib/username'
 import { USERNAME_MAX, type AgeBandLabel, type PublicProfile } from '../types'
@@ -54,6 +54,9 @@ export default function OnboardingPage({
     const name = checkUsername(username)
     if (!name.ok) return setError(name.reason)
 
+    // Today's date, or any date in the last few years, is a slip (the picker defaults near it).
+    // It must not count as a child signing up, because that would lock this browser out.
+    if (looksLikeSlip(dob)) return setError("That date is too recent to be a date of birth. Please enter your own.")
     const band = ageBandFromBirthDate(dob)
     if (!band) return setError('Please enter a valid date of birth.')
     if (band === 'under_13' && !ALLOW_UNDER_13) {
@@ -76,7 +79,7 @@ export default function OnboardingPage({
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-3 p-4">
         <h1 className="text-2xl font-semibold">We can't create an account for you right now</h1>
-        <p className="text-sm text-muted">Thanks for stopping by.</p>
+        <p className="text-sm text-muted">Volubly is for people aged 13 and over. Thanks for stopping by.</p>
       </main>
     )
   }
@@ -134,7 +137,7 @@ export default function OnboardingPage({
         </label>
 
         <p id="onboarding-help" className="text-xs text-muted">
-          We use your date of birth once to set up your account. We keep an age group, not the date.
+          Volubly is for ages 13 and over. We use your date of birth once to set up your account. We keep an age group, not the date.
         </p>
 
         {error && (

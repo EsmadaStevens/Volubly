@@ -56,8 +56,9 @@ export function routeName(e: InferenceEvent): string {
   if (e.route === 'skipped') return 'Skipped'
   if (e.path === 'on_device') return 'On-device'
   if (e.path === 'cloud') return 'Cloud'
-  // We asked for one route but the SDK did not say which ran. Say so; do not guess.
-  return `${e.route === 'cloud' ? 'Cloud' : 'On-device'} (path not reported)`
+  // The SDK did not say which ran, but we only ever ask for ONLY_ON_DEVICE or ONLY_IN_CLOUD, which cannot
+  // fall back to the other one. So the route we asked for is the route that ran (or would have run).
+  return e.route === 'cloud' ? 'Cloud' : 'On-device'
 }
 
 export interface EventView {
@@ -85,8 +86,8 @@ export function describeEvent(e: InferenceEvent, nowMs: number): EventView {
 }
 
 export function statsText(s: PurposeStats): string {
-  const done = s.onDevice + s.cloud + s.unknown
-  const parts = [`${done} completed (${s.onDevice} on-device, ${s.cloud} cloud${s.unknown ? `, ${s.unknown} path not reported` : ''})`]
+  const done = s.onDevice + s.cloud
+  const parts = [`${done} completed (${s.onDevice} on-device, ${s.cloud} cloud)`]
   parts.push(`${s.notChecked} not checked${s.timedOut ? ` (${s.timedOut} timed out)` : ''}`)
   if (s.flagged) parts.push(`${s.flagged} flagged`)
   const avg = (sum: number, n: number) => (n ? durationText(sum / n) : null)

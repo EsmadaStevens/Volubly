@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
-import { ageBandFromBirthDate } from '../ageBand'
+import { ageBandFromBirthDate, looksLikeSlip } from '../ageBand'
 
 const now = new Date(2026, 10, 17) // 17 Nov 2026, local time
 
@@ -45,5 +45,18 @@ describe('ageBandFromBirthDate', () => {
         expect(order[bo!]).toBeGreaterThanOrEqual(order[by!])
       }),
     )
+  })
+})
+
+describe('looksLikeSlip', () => {
+  it('flags today and the last few years, but not a real child or an adult', () => {
+    expect(looksLikeSlip('2026-11-17', now)).toBe(true)
+    expect(looksLikeSlip('2023-11-18', now)).toBe(true) // 3 years old
+    expect(looksLikeSlip('2022-11-17', now)).toBe(false) // 4 years old
+    expect(looksLikeSlip('2015-05-01', now)).toBe(false)
+    expect(looksLikeSlip('2000-01-01', now)).toBe(false)
+  })
+  it('does not flag dates that are not real, so the normal message shows', () => {
+    for (const bad of ['', 'abc', '2027-01-01', '2026-02-30']) expect(looksLikeSlip(bad, now)).toBe(false)
   })
 })

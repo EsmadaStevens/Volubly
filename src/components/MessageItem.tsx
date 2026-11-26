@@ -1,5 +1,6 @@
 import { formatClock } from '../lib/messageUtils'
 import type { MessageView, PublicProfile } from '../types'
+import { splitMentions } from '../lib/mentions'
 import Avatar from './Avatar'
 
 export default function MessageItem({
@@ -7,17 +8,22 @@ export default function MessageItem({
   profile,
   mine,
   hiddenReason,
+  hiddenLabel,
   uncertain = true,
   revealed = false,
   onToggle,
   heldSecs = 0,
   onRelease,
+  names = [],
+  myName,
 }: {
   message: MessageView
   profile: PublicProfile | null | undefined
   mine: boolean
   /** Why this message starts hidden on this device, if it does. */
   hiddenReason?: string
+  /** Category title for the hidden card, e.g. "Possible threat". */
+  hiddenLabel?: string
   /** Adds "it may be wrong" when the reason involves a guess. */
   uncertain?: boolean
   revealed?: boolean
@@ -26,14 +32,20 @@ export default function MessageItem({
   heldSecs?: number
   /** "Show now" for a held message. */
   onRelease?: () => void
+  /** Usernames known in this room, so "@name" can be highlighted. */
+  names?: string[]
+  /** The reader's own username: a mention of it gets a stronger highlight. */
+  myName?: string
 }) {
   const name = profile === undefined ? '...' : (profile?.username ?? 'Unknown')
   const collapsed = !!hiddenReason && !revealed
   const held = heldSecs > 0
+  const parts = splitMentions(message.body, names, myName)
+  const toMe = !mine && parts.some((p) => p.me)
   return (
     <li className={`flex gap-2 py-1.5 ${mine ? 'flex-row-reverse' : ''}`}>
       <Avatar seed={profile?.avatarSeed ?? message.senderId} size={32} />
-      <div className={`flex min-w-0 max-w-[80%] flex-col ${mine ? 'items-end' : 'items-start'}`}>
+      <div className={`flex min-w-0 max-w-[80%] flex-col lg:max-w-2xl ${mine ? 'items-end' : 'items-start'}`}>
         <p className="text-xs text-muted">
           <span className={`font-bold ${mine ? 'text-accent' : 'text-ink'}`}>{mine ? 'You' : name}</span>
           {' · '}
@@ -52,9 +64,13 @@ export default function MessageItem({
           </div>
         ) : collapsed ? (
           <div className="mt-0.5 rounded-2xl rounded-tl-sm border border-dashed border-line bg-night px-3 py-2 text-sm text-muted">
-            <p>
-              Hidden: {hiddenReason}.{uncertain && ' Checked on your device, so it may be wrong.'}
+            <p className="font-bold text-ink">Message hidden</p>
+            {hiddenLabel && <p className="text-xs font-bold uppercase tracking-wide text-warn">{hiddenLabel}</p>}
+            <p className="mt-1">
+              {hiddenReason}
+              {uncertain && ' Checked automatically, so it may be wrong.'}
             </p>
+            <p className="mt-1 text-xs">The message stays hidden until you choose to show it.</p>
             <button type="button" onClick={onToggle} className="min-h-[44px] font-bold text-spark underline">
               Show message
             </button>
@@ -65,10 +81,19 @@ export default function MessageItem({
             <p
               className={`mt-0.5 whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-base text-ink ${
                 mine ? 'rounded-tr-sm bg-raised' : 'rounded-tl-sm bg-surface'
-              }`}
+              } ${toMe ? 'ring-1 ring-accent/70' : ''}`}
             >
-              {message.body}
+              {parts.map((p, i) =>
+                p.mention ? (
+                  <span key={i} className={`font-bold ${p.me ? 'rounded bg-accent/20 text-accent' : 'text-spark'}`}>
+                    {p.text}
+                  </span>
+                ) : (
+                  p.text
+                ),
+              )}
             </p>
+            {toMe && <span className="text-xs font-semibold text-accent">Mentions you</span>}
             {hiddenReason && (
               <button type="button" onClick={onToggle} className="min-h-[44px] text-xs font-bold text-spark underline">
                 Hide again

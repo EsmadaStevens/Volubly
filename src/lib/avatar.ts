@@ -47,3 +47,52 @@ export function avatarCells(seed: string): boolean[][] {
   }
   return grid
 }
+
+// ---- Characters -------------------------------------------------------------------------
+// Each seed picks one body, one set of ears or an antenna, a pair of eyes, a mouth, a cheek
+// and a small extra, plus two colours. Everything is chosen from the seed alone, so the same
+// seed always draws the same character, and nothing is stored or downloaded.
+
+export const BODIES = ['round', 'squircle', 'egg', 'wide'] as const
+export const TOPS = ['none', 'round_ears', 'pointy_ears', 'antenna', 'horns', 'tuft'] as const
+export const EYES = ['dots', 'wide', 'sleepy', 'happy', 'wink'] as const
+export const MOUTHS = ['smile', 'open', 'flat', 'small_o', 'cat'] as const
+export const EXTRAS = ['none', 'sparkle', 'freckles', 'none_blush'] as const
+
+export interface AvatarTraits {
+  hue: number
+  hue2: number
+  body: (typeof BODIES)[number]
+  top: (typeof TOPS)[number]
+  eyes: (typeof EYES)[number]
+  mouth: (typeof MOUTHS)[number]
+  extra: (typeof EXTRAS)[number]
+  blush: boolean
+}
+
+export function avatarTraits(seed: string): AvatarTraits {
+  let s = hash32(seed + ':critter')
+  const roll = (n: number): number => {
+    s = next(s)
+    return (s >>> 8) % n
+  }
+  const hue = avatarHue(seed)
+  // The second colour sits 40 to 110 degrees round the colour wheel, so the gradient is never flat.
+  const hue2 = (hue + 40 + roll(71)) % 360
+  const extra = EXTRAS[roll(EXTRAS.length)]
+  return {
+    hue,
+    hue2,
+    body: BODIES[roll(BODIES.length)],
+    top: TOPS[roll(TOPS.length)],
+    eyes: EYES[roll(EYES.length)],
+    mouth: MOUTHS[roll(MOUTHS.length)],
+    extra,
+    blush: extra === 'none_blush' || roll(3) === 0,
+  }
+}
+
+/** A short id for the gradient, so two avatars on one page never clash. */
+export function avatarGradientId(seed: string): string {
+  return `av${hash32(seed).toString(36)}`
+}

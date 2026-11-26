@@ -35,13 +35,13 @@ const CHATTER = [
   'I would have given the foul at the start of that move',
   'the crowd is loud tonight',
   'subs coming on for the home side',
-  'fresh legs will help them',
+  'the substitutes will help them',
   'the midfield has been so quiet',
   'can someone explain the new handball rule?',
-  'if it touches the arm it is a foul, depends on position',
+  'it is only a foul if the contact was deliberate',
   'that rule makes no sense to me',
   'corner to the away side',
-  'big chance for a header here',
+  'big chance for the home side here',
   'saved! what a stop',
   'the rebound goes wide',
   'ten minutes to half time',
@@ -66,7 +66,7 @@ const CHATTER = [
   'the commentator keeps getting names wrong',
   'my gran is shouting at the TV again',
   'a quiet five minutes, finally',
-  'throw in deep in their half',
+  'throw in for the away side',
   'long ball, keeper comes out and claims it',
   'there is a sub getting ready already',
   'three minutes of added time',
@@ -81,14 +81,20 @@ const CHATTER = [
 const FLAGGED = [
   { senderId: 'sim-b', body: 'call me on 097 123 4567 and I will explain it' },
   { senderId: 'sim-d', body: 'full highlights here www.example.com/clip' },
-  { senderId: 'sim-e', body: 'you are all idiots, the ref was right' },
+  { senderId: 'sim-e', body: 'shut up, nobody asked, the ref was right' },
 ]
+
+// Every batch gets its own number. After "Clear simulated" the position counter starts again at 0, and the
+// reader check remembers its verdict by message id, so reused ids made a new message inherit an old one's
+// verdict. A fresh batch number keeps every simulated message's id unique for the whole session.
+let batch = 0
 
 function build(bodies: { senderId: string; body: string }[], nowMs: number, startIndex: number): MessageView[] {
   // Spread over the last few seconds so order is clear and nothing is in the future.
   const gap = 250
+  const b = ++batch
   return bodies.map((m, i) => ({
-    id: `sim-${startIndex + i}`,
+    id: `sim-${b}-${startIndex + i}`,
     senderId: m.senderId,
     body: m.body,
     sentAtMs: nowMs - (bodies.length - 1 - i) * gap,
@@ -113,7 +119,7 @@ export function simulatedFlagged(nowMs: number, startIndex: number): MessageView
 
 const SPOILERS = [
   { senderId: 'sim-a', body: 'GOOOAL!! 1-0 to the home side' },
-  { senderId: 'sim-c', body: 'penalty given, and a red card too' },
+  { senderId: 'sim-c', body: 'penalty awarded, and a yellow card too' },
 ]
 
 /** Two messages that give away what just happened, to show the Delay Shield. */

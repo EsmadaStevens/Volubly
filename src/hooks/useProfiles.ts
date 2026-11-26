@@ -8,6 +8,11 @@ import type { PublicProfile } from '../types'
 const cache = new Map<string, PublicProfile | null>()
 const inflight = new Set<string>()
 
+/** Put a known profile into the cache so it shows without a Firestore read. */
+export function primeProfile(uid: string, profile: PublicProfile): void {
+  cache.set(uid, profile)
+}
+
 export function useProfiles(uids: string[]): Map<string, PublicProfile | null> {
   const [, bump] = useState(0)
   const mounted = useRef(true)

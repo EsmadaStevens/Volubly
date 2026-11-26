@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
-import { hiddenReason, linkReason, patternReason, READER_REASON, verdictReason } from '../messageGuard'
+import { hiddenReason, linkReason, patternReason, READER_LABEL, READER_REASON, verdictReason } from '../messageGuard'
 import { VERDICTS } from '../draftCheck'
 
 describe('messageGuard', () => {
@@ -14,6 +14,7 @@ describe('messageGuard', () => {
   it('hides links with a "make sure you trust it" note, and is sure about explicit ones', () => {
     const r = linkReason('check https://example.com/x')
     expect(r?.text).toContain('make sure you trust it')
+    expect(r?.label).toBe('Link found')
     expect(r?.uncertain).toBe(false)
     expect(linkReason('go to www.thing.org')?.uncertain).toBe(false)
   })
@@ -33,8 +34,16 @@ describe('messageGuard', () => {
     expect(hiddenReason('see www.x.com', 'threat')?.text).toContain('link')
     expect(hiddenReason('hello', 'threat')?.text).toBe(READER_REASON.threat)
   })
-  it('every category has a reason', () => {
-    for (const v of VERDICTS) if (v !== 'ok') expect(READER_REASON[v].length).toBeGreaterThan(5)
+  it('every category has a reason and a "Possible ..." label', () => {
+    for (const v of VERDICTS)
+      if (v !== 'ok') {
+        expect(READER_REASON[v].length).toBeGreaterThan(5)
+        expect(READER_LABEL[v]).toMatch(/^Possible /)
+      }
+  })
+  it('labels exact patterns and bare domains honestly', () => {
+    expect(patternReason('0971234567')?.label).toBe('Possible personal information')
+    expect(linkReason('paypa1-security-update.com')?.label).toBe('Possible link')
   })
   it('a long digit run is always hidden', () => {
     fc.assert(

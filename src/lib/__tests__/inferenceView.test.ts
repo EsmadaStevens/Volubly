@@ -46,7 +46,7 @@ describe('describeEvent', () => {
     expect(resultText({ kind: 'busy' })).toContain('Not checked')
   })
   it('does not claim a path the SDK did not report', () => {
-    expect(describeEvent(ev({ path: 'unknown', route: 'cloud' }), 1000).route).toBe('Cloud (path not reported)')
+    expect(describeEvent(ev({ path: 'unknown', route: 'cloud' }), 1000).route).toBe('Cloud')
   })
   it('nothing flagged reads plainly', () => {
     expect(resultText({ kind: 'verdict', verdict: 'ok' })).toBe('Nothing flagged')

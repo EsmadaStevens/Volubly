@@ -1,6 +1,8 @@
 import { useState, useSyncExternalStore } from 'react'
+import { useProfiles } from '../hooks/useProfiles'
 import { checkDeps } from '../lib/checkDeps'
-import { ON_DEVICE_LIMIT, planCatchUp, runCatchUp, takeLatest, type CatchUpItem, type CatchUpPlan } from '../lib/catchUp'
+import { SIM_PROFILES } from '../lib/demoData'
+import { ON_DEVICE_LIMIT, planCatchUp, runCatchUp, takeLatest, tooFewMessage, tooFewToSummarise, type CatchUpItem, type CatchUpPlan } from '../lib/catchUp'
 import { getInferenceSnapshot, subscribeInference } from '../lib/inferenceLog'
 import type { GuardReason } from '../lib/messageGuard'
 import type { MessageView } from '../types'
@@ -27,6 +29,8 @@ export default function CatchUpBar({
 }) {
   const device = useSyncExternalStore(subscribeInference, getInferenceSnapshot).device
   const [card, setCard] = useState<Card | null>(null)
+  // Usernames stay on this device: they are only used to put names back into the answer.
+  const profiles = useProfiles(unseen.filter((m) => !m.simulated).map((m) => m.senderId))
 
   if (unseen.length === 0 && !card) return null
 
@@ -37,9 +41,9 @@ export default function CatchUpBar({
       setCard({
         step: 'done',
         lines: r.lines,
-        where: r.path === 'on_device' ? 'on this device' : r.path === 'cloud' ? 'in the cloud' : 'path not reported',
+        where: (r.path === 'unknown' ? route : r.path) === 'cloud' ? 'in the cloud' : 'on this device',
         secs: (r.ms / 1000).toFixed(1),
-        note,
+        note: r.covered < r.total ? `${note} Covers the latest ${r.covered} of ${r.total} new messages.`.trim() : note,
       })
     } catch (e) {
       setCard({ step: 'error', message: `Couldn't catch you up. ${(e as Error).message}` })
@@ -48,8 +52,13 @@ export default function CatchUpBar({
 
   function start() {
     // Messages already hidden on this device are left out. They are not sent anywhere.
-    const items = unseen.filter((m) => !hidden.has(m.id) && !held.has(m.id)).map((m) => ({ senderId: m.senderId, body: m.body }))
+    const items = unseen.filter((m) => !hidden.has(m.id) && !held.has(m.id)).map((m) => ({
+        senderId: m.senderId,
+        body: m.body,
+        name: (m.simulated ? SIM_PROFILES[m.senderId] : profiles.get(m.senderId))?.username,
+      }))
     if (items.length === 0) return setCard({ step: 'error', message: 'Nothing new to summarise.' })
+    if (tooFewToSummarise(items.length)) return setCard({ step: 'error', message: tooFewMessage(items.length) })
     const plan = planCatchUp({ count: items.length, device, online: navigator.onLine })
     if (plan.kind === 'none') return setCard({ step: 'error', message: plan.reason })
     if (plan.kind === 'cloud') return setCard({ step: 'consent', items, plan })

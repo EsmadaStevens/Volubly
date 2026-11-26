@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
-import { buildCatchUpPrompt, ON_DEVICE_LIMIT, parseSummary, planCatchUp, runCatchUp, takeLatest } from '../catchUp'
+import { bulletsFor, buildCatchUpPrompt, dropInvented, tooFewMessage, tooFewToSummarise, MAX_MESSAGES, coveredCount, labelsFor, ON_DEVICE_LIMIT, parseSummary, planCatchUp, restoreNames, runCatchUp, takeLatest } from '../catchUp'
 import type { DeviceState } from '../draftCheck'
 import type { InferenceEvent } from '../inferenceLog'
 
@@ -132,5 +132,109 @@ describe('runCatchUp', () => {
     const log = JSON.stringify(events)
     expect(log).not.toContain('SECRETMESSAGE')
     expect(log).not.toContain('SECRETSUMMARY')
+  })
+})
+
+
+describe('restoreNames', () => {
+  const items = [
+    { senderId: 'u1', body: 'hi', name: 'Human_1' },
+    { senderId: 'u2', body: 'yo', name: 'Human_2' },
+    { senderId: 'u1', body: 'again', name: 'Human_1' },
+  ]
+
+  it('puts usernames back in place of P1 and P2, on this device only', () => {
+    expect(restoreNames(['P1 said hi and P2 replied.'], items)).toEqual(['Human_1 said hi and Human_2 replied.'])
+  })
+
+  it('never sends the names: the prompt only has labels', () => {
+    const p = buildCatchUpPrompt(items)
+    expect(p).not.toContain('Human_1')
+    expect(p).not.toContain('Human_2')
+    expect(p).toContain('P1: hi')
+  })
+
+  it('uses the same labels as the prompt, in order of first appearance', () => {
+    expect([...labelsFor(items).values()]).toEqual(['P1', 'P2'])
+  })
+
+  it('leaves an unknown label, and a label with no known name, as it is', () => {
+    expect(restoreNames(['P9 is unknown.'], items)).toEqual(['P9 is unknown.'])
+    expect(restoreNames(['P1 spoke.'], [{ senderId: 'u1', body: 'x' }])).toEqual(['P1 spoke.'])
+  })
+
+  it('does not rewrite words that merely start with P1 and does not chain replacements', () => {
+    const named = [{ senderId: 'u1', body: 'x', name: 'P2' }, { senderId: 'u2', body: 'y', name: 'Zed' }]
+    expect(restoreNames(['P1 and P2', 'P10x'], named)).toEqual(['P2 and Zed', 'P10x'])
+  })
+})
+
+
+describe('how much a catch-up covers', () => {
+  const many = (n: number, len = 100) => Array.from({ length: n }, (_, i) => ({ senderId: `u${i % 5}`, body: `m${i} `.padEnd(len, 'x') }))
+
+  it('covers everything when it all fits', () => {
+    expect(coveredCount(many(20))).toBe(20)
+  })
+
+  it('covers only the newest messages when there are too many, and says how many', () => {
+    const items = many(200)
+    const n = coveredCount(items)
+    expect(n).toBeGreaterThan(30)
+    expect(n).toBeLessThan(200)
+    const prompt = buildCatchUpPrompt(items)
+    expect(prompt).toContain('m199 ') // the newest is in
+    expect(prompt).not.toContain('m0 ') // the oldest was left out
+  })
+
+  it('never looks at more than the newest 100 messages, and asks for 5 bullets on big backlogs', () => {
+    const items = Array.from({ length: 300 }, (_, i) => ({ senderId: `u${i % 5}`, body: `m${i}` }))
+    expect(coveredCount(items)).toBe(MAX_MESSAGES)
+    expect(bulletsFor(10)).toBe(3)
+    expect(bulletsFor(120)).toBe(5)
+    expect(buildCatchUpPrompt(items)).toContain('at most 5 short bullet points')
+  })
+  it('reports covered and total on the result', async () => {
+    const items = many(200)
+    const deps = {
+      generate: async () => ({ text: '- Things happened.', source: 'in_cloud' as const }),
+      now: () => 0,
+      record: () => {},
+      schedule: undefined,
+    }
+    const r = await runCatchUp('cloud', items, 'r', deps)
+    expect(r.total).toBe(200)
+    expect(r.covered).toBe(coveredCount(items))
+    expect(r.covered).toBeLessThan(r.total)
+  })
+})
+
+describe('keeping a small model honest', () => {
+  const one = [{ senderId: 'a', body: 'The other day I took a walk', name: 'Human_2' }]
+  it('does not summarise a tiny backlog, and says so plainly', () => {
+    expect(tooFewToSummarise(1)).toBe(true)
+    expect(tooFewToSummarise(3)).toBe(true)
+    expect(tooFewToSummarise(4)).toBe(false)
+    expect(tooFewMessage(1)).toBe("Only 1 new message. That's quick to read yourself, so there's nothing to summarise.")
+    expect(tooFewMessage(3)).toContain('3 new messages')
+  })
+  it('asks for fewer points on a small backlog and tells the model not to add anything', () => {
+    expect(bulletsFor(5)).toBe(2)
+    expect(bulletsFor(8)).toBe(3)
+    expect(buildCatchUpPrompt(one)).toContain('Do not add topics, details or people that are not in them')
+  })
+  it('drops lines about people who are not in the chat', () => {
+    expect(dropInvented(['P1 took a walk.', 'P2 and P4 are busy with work.'], one)).toEqual(['P1 took a walk.'])
+  })
+  it('keeps lines with no labels, and lines about real participants', () => {
+    const two = [{ senderId: 'a', body: 'x' }, { senderId: 'b', body: 'y' }]
+    expect(dropInvented(['P1 and P2 disagreed.', 'Kick-off is soon.'], two)).toEqual(['P1 and P2 disagreed.', 'Kick-off is soon.'])
+  })
+  it('runCatchUp never shows an invented participant, and fails clearly if nothing is left', async () => {
+    let t = 0
+    const deps = (text: string) => ({ generate: async () => ({ text, source: 'on_device' as const }), now: () => (t += 100), record: () => {} })
+    const r = await runCatchUp('on_device', one, 'r', deps('- P1 took a walk\n- P3 is busy with work'))
+    expect(r.lines).toEqual(['Human_2 took a walk'])
+    await expect(runCatchUp('on_device', one, 'r', deps('- P2 did a thing'))).rejects.toThrow('empty')
   })
 })
