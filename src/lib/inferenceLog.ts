@@ -81,13 +81,16 @@ export const getInferenceSnapshot = () => snapshot
 export function recordInference(e: InferenceEvent) {
   const s = { ...snapshot.stats[e.purpose] }
   if (isCompleted(e.outcome)) {
-    if (e.path === 'on_device') {
-      s.onDevice++
-      s.msOnDevice += e.ms ?? 0
-    } else if (e.path === 'cloud') {
+    // When the SDK does not say where it ran, count the route we asked for: the only modes we use
+    // (ONLY_ON_DEVICE, ONLY_IN_CLOUD) cannot fall back to the other one.
+    const ranInCloud = e.path === 'cloud' || (e.path !== 'on_device' && e.route === 'cloud')
+    if (ranInCloud) {
       s.cloud++
       s.msCloud += e.ms ?? 0
-    } else s.unknown++
+    } else {
+      s.onDevice++
+      s.msOnDevice += e.ms ?? 0
+    }
   } else {
     s.notChecked++
     if (e.outcome.kind === 'timeout') s.timedOut++

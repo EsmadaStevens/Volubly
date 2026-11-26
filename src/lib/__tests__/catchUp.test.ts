@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
-import { bulletsFor, buildCatchUpPrompt, MAX_MESSAGES, coveredCount, labelsFor, ON_DEVICE_LIMIT, parseSummary, planCatchUp, restoreNames, runCatchUp, takeLatest } from '../catchUp'
+import { bulletsFor, buildCatchUpPrompt, dropInvented, tooFewMessage, tooFewToSummarise, MAX_MESSAGES, coveredCount, labelsFor, ON_DEVICE_LIMIT, parseSummary, planCatchUp, restoreNames, runCatchUp, takeLatest } from '../catchUp'
 import type { DeviceState } from '../draftCheck'
 import type { InferenceEvent } from '../inferenceLog'
 
@@ -206,5 +206,35 @@ describe('how much a catch-up covers', () => {
     expect(r.total).toBe(200)
     expect(r.covered).toBe(coveredCount(items))
     expect(r.covered).toBeLessThan(r.total)
+  })
+})
+
+describe('keeping a small model honest', () => {
+  const one = [{ senderId: 'a', body: 'The other day I took a walk', name: 'Human_2' }]
+  it('does not summarise a tiny backlog, and says so plainly', () => {
+    expect(tooFewToSummarise(1)).toBe(true)
+    expect(tooFewToSummarise(3)).toBe(true)
+    expect(tooFewToSummarise(4)).toBe(false)
+    expect(tooFewMessage(1)).toBe("Only 1 new message. That's quick to read yourself, so there's nothing to summarise.")
+    expect(tooFewMessage(3)).toContain('3 new messages')
+  })
+  it('asks for fewer points on a small backlog and tells the model not to add anything', () => {
+    expect(bulletsFor(5)).toBe(2)
+    expect(bulletsFor(8)).toBe(3)
+    expect(buildCatchUpPrompt(one)).toContain('Do not add topics, details or people that are not in them')
+  })
+  it('drops lines about people who are not in the chat', () => {
+    expect(dropInvented(['P1 took a walk.', 'P2 and P4 are busy with work.'], one)).toEqual(['P1 took a walk.'])
+  })
+  it('keeps lines with no labels, and lines about real participants', () => {
+    const two = [{ senderId: 'a', body: 'x' }, { senderId: 'b', body: 'y' }]
+    expect(dropInvented(['P1 and P2 disagreed.', 'Kick-off is soon.'], two)).toEqual(['P1 and P2 disagreed.', 'Kick-off is soon.'])
+  })
+  it('runCatchUp never shows an invented participant, and fails clearly if nothing is left', async () => {
+    let t = 0
+    const deps = (text: string) => ({ generate: async () => ({ text, source: 'on_device' as const }), now: () => (t += 100), record: () => {} })
+    const r = await runCatchUp('on_device', one, 'r', deps('- P1 took a walk\n- P3 is busy with work'))
+    expect(r.lines).toEqual(['Human_2 took a walk'])
+    await expect(runCatchUp('on_device', one, 'r', deps('- P2 did a thing'))).rejects.toThrow('empty')
   })
 })

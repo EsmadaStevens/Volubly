@@ -32,4 +32,10 @@ describe('demoData', () => {
   it('ordinary simulated chatter is not hidden by the code checks', () => {
     for (const m of simulatedChatter(60, now, 0)) expect(hiddenReason(m.body, null)).toBeNull()
   })
+
+  it('never reuses an id, even after the list is cleared and starts again from 0', () => {
+    const first = simulatedChatter(10, now, 0).map((m) => m.id)
+    const second = simulatedFlagged(now, 0).map((m) => m.id) // same start position, as after "Clear simulated"
+    expect(second.some((id) => first.includes(id))).toBe(false)
+  })
 })
