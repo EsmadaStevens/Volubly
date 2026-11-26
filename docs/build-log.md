@@ -35,3 +35,4 @@
 - The real client is not updated by this spec. The client is built separately.
 ## 2026-11-26: Whisper threads: client (whisper-threads spec, Part 2)
 - Task 10: Kiro added the whisper types, the time model (phase, invite and thread time left, countdown text) and the Firestore-to-view mapping under src/lib, with example and fast-check tests. These are plain TypeScript with no Firebase import at run time. Nothing is wired into the screens yet. Nothing was deployed.
+- Task 11: Kiro added the inbox model (invites for you, open whispers, waiting invites, sorted on the client because the query has no order), the helpers that pick which action the rules allow and who may be invited, and the slot picker (never returns a busy slot, 60 second safety margin). Plain TypeScript with example and fast-check tests. Nothing is wired into the screens yet.
