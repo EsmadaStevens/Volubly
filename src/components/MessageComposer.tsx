@@ -5,31 +5,42 @@ import { insertAt } from '../lib/emoji'
 import { completeMention, mentionQuery, suggestNames } from '../lib/mentions'
 import { explainSendError, preCheckSend } from '../lib/messageUtils'
 import { sendMessage } from '../lib/sendMessage'
+import type { ComposerTarget } from '../lib/whisperTarget'
 import { MESSAGE_MAX_LENGTH, MESSAGE_MIN_INTERVAL_S } from '../types'
 import EmojiPicker from './EmojiPicker'
 import GhostStatus from './GhostStatus'
 import ReviewPanel, { type ReviewState } from './ReviewPanel'
 
-export default function MessageComposer({
-  roomId,
-  uid,
-  openedAtMs,
-  expiresAt,
-  createdAtMs,
-  ghost,
-  names = [],
-  myName,
-}: {
-  roomId: string
+interface CommonProps {
   uid: string
-  openedAtMs: number
-  expiresAt: Timestamp
   createdAtMs: number
   ghost: GhostCheck
   /** Usernames of people in this room, for @mention suggestions. */
   names?: string[]
   myName?: string
-}) {
+}
+
+/** A room: sends with sendMessage and closes 24 hours after the room opened. */
+interface RoomProps extends CommonProps {
+  roomId: string
+  openedAtMs: number
+  expiresAt: Timestamp
+  target?: undefined
+}
+
+/** Anything else (a whisper): the target says how to check a draft, send it, and word each problem. */
+interface TargetProps extends CommonProps {
+  target: ComposerTarget
+  roomId?: undefined
+  openedAtMs?: undefined
+  expiresAt?: undefined
+}
+
+export type MessageComposerProps = RoomProps | TargetProps
+
+export default function MessageComposer(props: MessageComposerProps) {
+  const { uid, createdAtMs, ghost, names = [], myName, target } = props
+  const explain = target ? target.explain : explainSendError
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -56,18 +67,20 @@ export default function MessageComposer({
     setBusy(true)
     // One id per message: pressing Send again after a doubtful failure cannot post it twice.
     if (!draftId.current) draftId.current = crypto.randomUUID()
-    const result = await sendMessage({
-      roomId,
-      uid,
-      messageId: draftId.current,
-      body,
-      roomExpiresAt: expiresAt,
-      openedAtMs,
-      createdAtMs,
-      lastSentAtMs: lastSent.current,
-    })
+    const result = props.target
+      ? await props.target.send({ messageId: draftId.current, body, lastSentAtMs: lastSent.current })
+      : await sendMessage({
+          roomId: props.roomId,
+          uid,
+          messageId: draftId.current,
+          body,
+          roomExpiresAt: props.expiresAt,
+          openedAtMs: props.openedAtMs,
+          createdAtMs,
+          lastSentAtMs: lastSent.current,
+        })
     setBusy(false)
-    if (result.status === 'failed') return setError(explainSendError(result.code))
+    if (result.status === 'failed') return setError(explain(result.code))
     lastSent.current = Date.now()
     draftId.current = null
     setText('')
@@ -80,8 +93,10 @@ export default function MessageComposer({
     setError(null)
     setNotice(null)
     setReview(null)
-    const problem = preCheckSend({ body: text, nowMs: Date.now(), openedAtMs, lastSentAtMs: lastSent.current, createdAtMs })
-    if (problem) return setError(explainSendError(problem))
+    const problem = props.target
+      ? props.target.preCheck(text, lastSent.current)
+      : preCheckSend({ body: text, nowMs: Date.now(), openedAtMs: props.openedAtMs, lastSentAtMs: lastSent.current, createdAtMs })
+    if (problem) return setError(explain(problem))
 
     const draft = text
     setChecking(true)

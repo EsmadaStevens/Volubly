@@ -4,6 +4,8 @@ import { useProfiles } from '../hooks/useProfiles'
 import { SIM_PROFILES } from '../lib/demoData'
 import type { GuardReason } from '../lib/messageGuard'
 import { nearBottom } from '../lib/scrollUtils'
+import { canPickPerson } from '../lib/whisperInbox'
+import type { AgeBandLabel } from '../types'
 import MessageItem from './MessageItem'
 
 export default function MessageList({
@@ -13,6 +15,10 @@ export default function MessageList({
   uid,
   names,
   myName,
+  closedText = 'This room has closed.',
+  emptyText = 'No messages yet. Say something to get it started.',
+  onPickPerson,
+  viewerBand,
 }: {
   state: MessagesState
   hidden: Map<string, GuardReason>
@@ -21,6 +27,13 @@ export default function MessageList({
   uid: string
   names?: string[]
   myName?: string
+  /** Shown when the messages can no longer be read. */
+  closedText?: string
+  /** Shown when there are no messages yet. */
+  emptyText?: string
+  /** Makes other people's names tappable. Needs `viewerBand` too. Simulated senders and own messages never get it. */
+  onPickPerson?: (senderId: string) => void
+  viewerBand?: AgeBandLabel
 }) {
   const messages = state.status === 'ready' ? state.messages : []
   const profiles = useProfiles(messages.filter((m) => !m.simulated).map((m) => m.senderId))
@@ -48,7 +61,7 @@ export default function MessageList({
   }, [last?.id, last?.pending, uid]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (state.status === 'loading') return <p className="px-4 py-6 text-sm text-muted">Loading messages...</p>
-  if (state.status === 'closed') return <p className="px-4 py-6 text-sm text-muted">This room has closed.</p>
+  if (state.status === 'closed') return <p className="px-4 py-6 text-sm text-muted">{closedText}</p>
   if (state.status === 'error')
     return (
       <p role="alert" className="px-4 py-6 text-sm text-ink">
@@ -59,7 +72,7 @@ export default function MessageList({
   return (
     <div className="px-4">
       {messages.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted">No messages yet. Say something to get it started.</p>
+        <p className="py-6 text-center text-sm text-muted">{emptyText}</p>
       ) : (
         <ul>
           {messages.map((m) => {
@@ -72,6 +85,11 @@ export default function MessageList({
                 mine={m.senderId === uid}
                 names={names}
                 myName={myName}
+                onNameClick={
+                  onPickPerson && viewerBand && canPickPerson({ senderId: m.senderId, uid, simulated: m.simulated, viewerBand })
+                    ? () => onPickPerson(m.senderId)
+                    : undefined
+                }
                 hiddenReason={reason?.text}
                 hiddenLabel={reason?.label}
                 uncertain={reason?.uncertain}

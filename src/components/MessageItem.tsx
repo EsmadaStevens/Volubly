@@ -16,6 +16,7 @@ export default function MessageItem({
   onRelease,
   names = [],
   myName,
+  onNameClick,
 }: {
   message: MessageView
   profile: PublicProfile | null | undefined
@@ -36,8 +37,11 @@ export default function MessageItem({
   names?: string[]
   /** The reader's own username: a mention of it gets a stronger highlight. */
   myName?: string
+  /** Makes the name a button (opens the invite sheet). Left out for the reader's own messages. */
+  onNameClick?: () => void
 }) {
   const name = profile === undefined ? '...' : (profile?.username ?? 'Unknown')
+  const nameIsButton = !!onNameClick && !mine && !!profile
   const collapsed = !!hiddenReason && !revealed
   const held = heldSecs > 0
   const parts = splitMentions(message.body, names, myName)
@@ -47,7 +51,19 @@ export default function MessageItem({
       <Avatar seed={profile?.avatarSeed ?? message.senderId} size={32} />
       <div className={`flex min-w-0 max-w-[80%] flex-col lg:max-w-2xl ${mine ? 'items-end' : 'items-start'}`}>
         <p className="text-xs text-muted">
-          <span className={`font-bold ${mine ? 'text-accent' : 'text-ink'}`}>{mine ? 'You' : name}</span>
+          {nameIsButton ? (
+            // The tap area is stretched to 44px high with a pseudo-element, so the message line stays compact.
+            <button
+              type="button"
+              onClick={onNameClick}
+              aria-label={`Open ${name}`}
+              className="relative font-bold text-ink underline decoration-dotted underline-offset-2 after:absolute after:-inset-x-2 after:-inset-y-[14px] after:content-[''] focus-visible:outline focus-visible:outline-2 focus-visible:outline-spark"
+            >
+              {name}
+            </button>
+          ) : (
+            <span className={`font-bold ${mine ? 'text-accent' : 'text-ink'}`}>{mine ? 'You' : name}</span>
+          )}
           {' · '}
           {formatClock(message.sentAtMs)}
           {message.pending && ' · sending'}
