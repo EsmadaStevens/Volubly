@@ -4,7 +4,7 @@
 
 A whisper thread is a private chat between exactly two people. One person (the inviter) invites another (the invitee). Nothing is in effect until the invitee accepts. A pending invite can be accepted for 15 minutes after it is created. Once accepted, the thread is open for exactly 1 hour from the acceptance time, then it closes. Either person can end it early, and the invitee can decline a pending invite. Either person can block the other, and a person who has blocked someone cannot be invited by them.
 
-All of this is enforced only in `firestore.rules`. There are no Cloud Functions, and the project stays on the Spark plan. This spec covers rules, emulator tests and documentation only. Nothing under `src/` changes; the client is built separately.
+All of this is enforced only in `firestore.rules`. There are no Cloud Functions, and the project stays on the Spark plan. **Part 1 (Requirements 1 to 11)** covers rules, emulator tests and documentation only. Nothing under `src/` changes in Part 1. **Part 2 (Requirements 12 to 24, at the end of this file)** builds the client on top of the finished rules.
 
 Three limits of this design are stated up front:
 
@@ -200,7 +200,7 @@ Time in the rules comes from `request.time`. Rules cannot count documents, so th
 #### Acceptance Criteria
 
 1. THE implementation SHALL modify only `firestore.rules`, new files under `tests/rules`, `tests/rules/helpers.ts` (additive helpers only), `docs/build-log.md`, `.kiro/steering/safety-and-claims.md`, `.kiro/specs/whisper-threads/*`, and one new file under `.kiro/hooks`. `firestore.indexes.json` MAY change only if the design shows a query that needs a composite index.
-2. THE implementation SHALL leave every file under `src/` unchanged.
+2. THE implementation of Part 1 SHALL leave every file under `src/` unchanged. (Part 2 changes `src/` only as listed in Requirement 12.)
 3. THE implementation SHALL keep every existing rule for `rooms`, `roomSlots`, `users` and `publicProfiles` working as before. The only change to an existing `match` block SHALL be the new `blocked` subcollection under `users/{userId}`.
 4. THE implementation SHALL save `firestore.rules` as plain UTF-8 without a byte order mark, and SHALL verify this by reading the first three bytes of the file after every write.
 5. THE implementation SHALL add an agent hook in `.kiro/hooks` that runs `npm run test:emulator` whenever `firestore.rules` or any file under `tests/rules` is saved.
@@ -214,3 +214,227 @@ Time in the rules comes from `request.time`. Rules cannot count documents, so th
 4. **Cleanup hint bounds (1.7).** Accepted.
 5. **Slot fields on the Whisper (8.6).** `inviterSlot` and `inviteeSlot` added to keep the lookup count low.
 6. **Accept checks both block directions (3.7).** Changed from the first draft.
+
+---
+
+# Part 2: Client
+
+## Introduction (Part 2)
+
+The rules and the emulator tests from Part 1 are finished. Part 2 adds the client: an invite button on a username in a room, a requests inbox, the whisper chat with its one-hour countdown, and end and block. Part 2 does not change `firestore.rules`. Every limit below is enforced by the rules; the client only explains problems early, and it must never be the only thing standing between a person and a rule.
+
+Four facts shape the client:
+
+- **The client cannot see the other person's age band.** `users/{uid}` is readable only by its owner. The rules refuse a cross-band invite, and the client can only show a generic failure. It must not guess or reveal a band.
+- **Open listeners do not re-check rules.** A snapshot listener opened while a thread is open keeps delivering after the hour ends. The client must clear the thread itself.
+- **The device clock can differ from the server clock.** The rules use `request.time`. The client uses its own clock for countdowns and early explanations, with a safety margin where a wrong guess would cause a denied write.
+- **The Spark plan has no composite indexes and no Cloud Functions.** Whisper queries use one `array-contains`, and all sorting happens on the client.
+
+## Glossary (Part 2)
+
+- **Client**: The React app under `src/`.
+- **Person_Sheet**: The dialog that opens when a person taps another person's username in a room.
+- **Inbox**: The screen at `#whispers`.
+- **Whisper_Chat**: The screen at `#whisper/{id}`.
+- **Whisper_View**: The client's flat copy of a Whisper document (ids, status, times in milliseconds, slots, and the `expiresAt` timestamp kept as it came).
+- **Thread_Phase**: A value derived from a Whisper_View and the current time: `invite_open`, `invite_expired`, `open`, `time_up`, `declined` or `ended`.
+- **Slot_Pick**: The slot number (1, 2 or 3) the client chooses for an invite or an accept, or none when all three are busy.
+- **Write_Plan**: A plain description of the writes for one action (a list of set, update and delete operations with a server-time marker). It holds no Firebase code, so it can be tested without Firebase and checked against the rules in the emulator.
+- **Ghost_Pipeline**: The existing sender check (`useGhostCheck.review`, which redacts first and then asks the on-device or consented cloud model) and the existing reader check (`useMessageGuard`, which uses plain-code patterns and the on-device model only).
+- **Shared_Components**: `MessageComposer`, `MessageList` and `MessageItem`.
+
+## Requirements (Part 2)
+
+### Requirement 12: Scope, integration points and constraints
+
+**User Story:** As a maintainer, I want the client added without disturbing the Hybrid code, so that rooms keep working exactly as before.
+
+#### Acceptance Criteria
+
+1. THE implementation SHALL add new files under `src/` (`lib`, `hooks`, `components`, `pages`) and their tests, as listed in the design.
+2. THE implementation SHALL change an existing file only at these integration points: `App.tsx` (two routes), `HomePage.tsx` (one link), `RoomPage.tsx` (open the Person_Sheet), `MessageItem.tsx` (optional username button), `MessageList.tsx` (optional props for texts and for the username button), `MessageComposer.tsx` (optional `target`).
+3. EVERY change to an existing file SHALL be additive. WHEN the new optional props are absent, the file SHALL behave exactly as before, and every existing test SHALL pass without being edited.
+4. THE implementation SHALL NOT change `firestore.rules`, `firestore.indexes.json`, `package.json` dependencies, or any existing file under `tests/rules`. It SHALL add no dependency, no Cloud Function and no paid-plan feature, and it SHALL NOT deploy.
+5. THE implementation SHALL add no composite index. Whisper queries are limited to `where('memberIds', 'array-contains', uid)` on `whispers`, `where('userId', '==', uid)` on `whisperSlots`, and `orderBy('sentAt')` on one messages collection (the same single-field order that rooms already use). Ordering and filtering by status SHALL happen on the client.
+6. Routing SHALL stay hash-based: `#whispers` for the Inbox and `#whisper/{id}` for a whisper.
+7. THE implementation SHALL NOT build anything on the roadmap list in `product.md`, and SHALL NOT add a report button, notifications or a profile card beyond what this part lists.
+8. THE three additions to the brief (cancel a sent invite, decline and block, unblock) SHALL stay small: buttons inside the existing Inbox rows and the Person_Sheet. They SHALL NOT add a screen.
+
+### Requirement 13: Routes and entry points
+
+**User Story:** As a person, I want to find my invites and my open whispers, so that I do not miss them.
+
+#### Acceptance Criteria
+
+1. WHEN the hash is `#whispers`, THE Client SHALL show the Inbox. WHEN the hash matches `#whisper/{id}` with an id of letters and digits, THE Client SHALL show the Whisper_Chat for that id. Every other hash SHALL behave as before.
+2. THE Home screen header SHALL show a "Whispers" link with a touch target of at least 44px for accounts whose age band is `13_17` or `18_plus`. WHEN invites addressed to the person are pending, THE link SHALL show their count and an accessible name that includes it.
+3. FOR an `under_13` account, THE Client SHALL NOT show the link, SHALL NOT show an invite button, and SHALL NOT read any whisper data. WHEN such an account opens `#whispers` or `#whisper/{id}` by hand, THE Client SHALL show the notice "Whispers aren't available for this account." and a link back, with no mention of any age limit, and SHALL open no listener. The age check SHALL happen in a wrapper component before any whisper hook runs, so no hook is called for that account.
+4. EVERY whisper screen SHALL have a visible link back (to `#whispers` or `#`).
+
+### Requirement 14: Inviting from a room
+
+**User Story:** As a person in a room, I want to invite someone I am talking with to a private chat.
+
+#### Acceptance Criteria
+
+1. IN a room, THE username on another person's message SHALL be a button with an expanded tap area of at least 44px. Tapping it SHALL open the Person_Sheet showing that person's avatar and username and nothing else about them.
+2. THE username SHALL NOT be a button on the person's own messages, on simulated demo messages, or when the viewer's own age band is `under_13`. THE Person_Sheet SHALL therefore never open for a simulated (demo) sender. One pure function (`canPickPerson`) decides this, and a test SHALL cover the simulated case.
+3. Because the other person's age band is not readable, THE Client SHALL offer the invite regardless of the other person's band. THE Person_Sheet SHALL carry one neutral sentence that whispers work between people in the same age group and that not every invite can be sent. A cross-band invite SHALL fail in the rules and SHALL show the generic error (Requirement 20). The Client SHALL NOT infer, store, or display the other person's band.
+4. THE Person_Sheet SHALL have these states, each with plain wording: loading; ready (Invite button); you have blocked this person (an Unblock button and no Invite); a whisper or invite with this person already exists (a link to it instead of Invite); sending; sent; failed.
+5. WHEN the person taps Invite, THE Client SHALL pick a slot (Requirement 15), and WHEN none is free, SHALL show the "too many whispers" message and write nothing.
+6. WHEN a slot is picked, THE Client SHALL write the Whisper and the inviter slot in one batch using the invite Write_Plan. The Whisper id SHALL be created once when the sheet opens and reused for retries. `expiresAt` SHALL be 97.5 minutes after the device time, which sits in the middle of the 75 to 120 minute window the rules accept, so a clock that is off by up to about 20 minutes still passes.
+7. WHEN the batch succeeds, THE sheet SHALL say "Invite sent. {name} has 15 minutes to accept." and link to the Inbox. THE Client SHALL NOT navigate away by itself.
+8. THE Invite button SHALL be disabled while a send is in progress. THE invite SHALL reuse its Whisper id on retry. IF a send fails for any reason (a denial, a timeout, or an offline check), THEN BEFORE showing an error THE Client SHALL re-read `whispers/{id}` once. WHEN it exists with status `requested` and the viewer as inviter, THE Client SHALL show "Invite sent" instead of an error. The reason is that a first attempt can succeed and still look like a failure, and then the retry is denied: a second `set` on that id is an update, and the slot's `whisperId` has not changed. IF the re-read itself fails or finds nothing, THE Client SHALL show the generic error.
+9. THE Person_Sheet SHALL close on Escape and on a tap outside it, like the profile sheet.
+
+### Requirement 15: Choosing a slot
+
+**User Story:** As a person with up to three open whispers, I want the app to pick a free slot for me, so that I never have to think about slots.
+
+#### Acceptance Criteria
+
+1. THE Client SHALL read the person's own slots with one `getDocs` query (`where('userId', '==', uid)`) at the moment of the action, and SHALL NOT keep a listener on slots.
+2. A slot SHALL count as free WHEN its document does not exist, OR the Whisper it names is not in the person's loaded whisper list, OR that Whisper is `declined` or `ended`, OR it is `requested` and at least 15 minutes plus a 60 second safety margin old, OR it is `accepted` and at least 1 hour plus a 60 second safety margin past `acceptedAt`.
+3. THE Slot_Pick SHALL prefer a slot that never existed, then the free slot whose Whisper is oldest, and SHALL return none when all three are busy. It SHALL never return a busy slot.
+4. THE same Slot_Pick SHALL be used for the invitee slot at accept time.
+5. IF the pick was wrong because the data was stale, THEN THE rules deny the batch and the Client SHALL show the generic error. THE Client SHALL NOT retry with another slot automatically.
+6. THE Client SHALL NOT write a slot outside the batch of an invite or an accept, and SHALL NOT delete a slot.
+
+### Requirement 16: Requests inbox
+
+**User Story:** As a person, I want one place to see invites for me and my open whispers.
+
+#### Acceptance Criteria
+
+1. THE Inbox SHALL read the person's whispers with one listener (`array-contains` on `memberIds`) and SHALL build these sections on the client, omitting a section that is empty: **Invites for you** (status `requested`, the person is the invitee, less than 15 minutes since `createdAt`, soonest to expire first), **Open whispers** (status `accepted`, less than 1 hour since `acceptedAt`, soonest to end first), **Waiting for a reply** (status `requested`, the person is the inviter, still inside the 15 minutes, newest first).
+2. Declined, ended, expired and finished whispers SHALL NOT be listed.
+3. EACH invite row SHALL show the inviter's avatar and username, and the time left to accept ("14 min left", or "Under a minute left").
+4. WHEN the person taps Accept, THE Client SHALL first check the invite window against the device clock. IF it has passed, THEN THE Client SHALL show "This invite expired." and write nothing. OTHERWISE it SHALL pick a slot, show "too many whispers" if none is free, or write the accept Write_Plan, and on success open `#whisper/{id}`.
+5. IF an accept fails (a denial, a timeout, or an offline check), THEN THE Client SHALL read the Whisper once. WHEN it is `accepted` with the viewer as invitee, THE Client SHALL treat the accept as done and open the whisper (the first attempt went through). WHEN it is stale or no longer `requested` for any other reason, THE Client SHALL show "This invite expired." OTHERWISE it SHALL show the generic error.
+6. WHEN the person taps Decline, THE Client SHALL write the decline Write_Plan. THE row SHALL disappear when the snapshot arrives.
+7. "Decline and block" SHALL write the decline and the block entry in one batch (Requirement 18).
+8. EACH Waiting row SHALL have a Cancel button that writes the cancel Write_Plan.
+9. THE sections SHALL be recomputed on every snapshot and on the shared 30 second clock (`useNow`), so a stale invite leaves the list within about 30 seconds.
+10. THE Inbox SHALL show a calm empty state ("No whispers right now. Tap a name in a room to invite someone."), a loading state, and a plain-language error state with a Try again button.
+
+### Requirement 17: Whisper chat and the one-hour countdown
+
+**User Story:** As a person in a whisper, I want to chat, see how long is left, and be sure it is gone from my screen when it ends.
+
+#### Acceptance Criteria
+
+1. THE Whisper_Chat SHALL listen to the Whisper document and show what the Thread_Phase calls for: `invite_open` as the invitee (Accept and Decline, time left); `invite_open` as the inviter ("Waiting for {name}", time left, Cancel); `invite_expired` ("This invite expired."); `open` (the chat); `time_up`, `declined` and `ended` (all three show "This whisper has ended." with no cause); document missing or unreadable ("This whisper isn't available.").
+2. IN the `open` phase, THE header SHALL show the other person's avatar and username, a countdown to `acceptedAt` plus 1 hour in `mm:ss`, an End action and an End and block action. One line SHALL say: "Only you and {name} can read this in the app. It ends 1 hour after it was accepted."
+3. THE countdown SHALL be computed from `acceptedAt` and the device clock, SHALL update every second, and SHALL be rendered by a small component so the message list does not re-render each second.
+4. WHEN the countdown reaches zero, THE Client SHALL within one second switch to the ended view. In that moment the message list, the composer (and any unsent draft) SHALL unmount, the messages listener SHALL unsubscribe, and the in-memory messages SHALL be dropped. Nothing SHALL depend on the rules re-checking an open listener.
+5. WHEN the Whisper document changes to `ended` (the other person ended it, or a block ended it), THE Client SHALL switch to the ended view immediately, with the same clearing.
+6. IF the messages listener reports permission-denied while the Whisper still looks open, THEN THE Client SHALL treat it as ended (the device clock was behind the server).
+7. THE messages listener SHALL exist only while the phase is `open`. It SHALL use `orderBy('sentAt')` and `limitToLast(200)` like rooms, and SHALL need no new index.
+8. THE Whisper_Chat SHALL NOT use the Delay Shield, the catch-up bar or the unseen count. Those are room features.
+9. THE one-shot timer that ends the chat at the hour mark SHALL also be re-checked when the page becomes visible again and when the window gets focus, because a single timer fires late after the device sleeps or the tab is throttled. At each of these events the Client SHALL compare the device clock with `acceptedAt` plus 1 hour and switch to the ended view at once when it has passed.
+
+### Requirement 18: Ending and blocking
+
+**User Story:** As a person, I want to leave a whisper, and to stop someone from inviting me again.
+
+#### Acceptance Criteria
+
+1. THE End action SHALL ask once ("End this whisper?" with End and Keep chatting) before it writes, so a mis-tap does not end the thread.
+2. THE action written SHALL follow the person's role and the status, as the rules define: invitee on `requested` writes decline; inviter on `requested` writes cancel (`ended`, `endedBy` set); either member on `accepted` writes end (`ended`, `endedBy` set). FOR any other status THE Client SHALL write no Whisper update.
+3. "End and block" SHALL write the Whisper update and the block entry `users/{uid}/blocked/{otherUid}` (`blockedId`, `blockedAt`) in one batch. WHEN the Whisper is already over, it SHALL write the block entry alone.
+4. THE person who is blocked SHALL see only "This whisper has ended." and nothing that says they were blocked.
+5. THE Person_Sheet SHALL offer Unblock for a person the viewer has blocked, which deletes that block entry. THE Unblock button SHALL exist in the sheet's blocked state, and a test SHALL check it.
+6. THE words "ends" and "ended" SHALL be used for threads. THE Client SHALL NOT say a thread is deleted, erased or removed.
+7. IF any of these writes fails, THEN THE Client SHALL show the generic error and leave the screen unchanged.
+
+### Requirement 19: Messages and Ghost-Mode
+
+**User Story:** As a person, I want whisper messages to get the same protections as room messages.
+
+#### Acceptance Criteria
+
+1. THE Whisper_Chat SHALL use the existing `MessageComposer`, `MessageList`, `MessageItem`, `useGhostCheck` and `useMessageGuard`. THE implementation SHALL NOT copy them.
+2. `MessageComposer` SHALL gain one optional `target` prop that supplies the pre-check, the send function and the error wording. WHEN `target` is absent, the composer SHALL behave exactly as before.
+3. THE sender check SHALL be the existing one: redaction by plain code first, then the on-device model, or the cloud model only when the person has given cloud consent, then the review panel when something is flagged. Consent SHALL be the same stored setting that rooms use, because it is the same task (a check of the person's own draft). THE whisper composer SHALL show the same consent line as the room composer ("Allow a cloud check when this device can't do it..."), which is part of the existing `GhostStatus` panel, on every screen width. A test SHALL check that the open chat's markup contains that line.
+4. THE reader check SHALL be `useMessageGuard` unchanged: plain-code patterns, and the on-device model only. Other people's whisper messages SHALL NEVER be sent to the cloud.
+5. THE send SHALL write the message and the rate-limit document in one batch with `expiresAt` copied from the Whisper, using a message id made once per draft, so a retry cannot post twice.
+6. THE pre-check SHALL mirror the rules in plain words: empty, over 280 characters, faster than one message every 3 seconds, a link while the sender is in probation, and the thread being closed at `acceptedAt` plus 1 hour.
+7. THE AI status badge and the inference drawer SHALL stay visible on wide screens as well as small ones, as in rooms.
+8. WHEN the thread has closed, THE sender SHALL see "This whisper has ended, so messages can no longer be sent." For every other failure the existing room wording SHALL apply (it describes the person's own draft or connection). A block SHALL show the existing generic "Your message wasn't sent. Please try again."
+9. IF a send is denied and the device clock is within 60 seconds either side of `acceptedAt` plus 1 hour, THEN THE Client SHALL treat the thread as ended: it SHALL show "This whisper has ended" (the closed wording above) and switch the page to the ended view, instead of showing a generic error. The cause is almost always the hour passing between the pre-check and the write.
+
+### Requirement 20: Errors
+
+**User Story:** As a person, I want clear errors that do not reveal anything about the other person.
+
+#### Acceptance Criteria
+
+1. THE Client SHALL use exactly two specific error messages for invites, accepts, ends and blocks: "You have too many whispers open. End one or wait for one to finish, then try again." and "This invite expired."
+2. EVERY other failure of those actions SHALL show one generic message: "That didn't work. Check your connection and try again."
+3. THE two specific messages SHALL be chosen from facts the client already has (no free slot; the invite window has passed or the re-read Whisper is stale or no longer open). THE Client SHALL NOT choose any message from the cause of a rules denial.
+4. NO message SHALL mention a block, an age, an age band, an adult, a teen or a minor, or reveal any setting of the other person.
+5. THE Client MAY log the error code to the console. THE screen SHALL NOT show it.
+6. THE Firestore web SDK does not reject a batch while the device is offline: it queues the write and the commit promise waits. THEREFORE every invite, accept, decline, cancel, end, block and unblock SHALL first check `navigator.onLine` (as `sendMessage` does) and, when offline, show the generic error and write nothing.
+7. EVERY such commit SHALL also have a timeout of 10 seconds. A timeout SHALL show the generic error (after the re-reads in Requirements 14.8 and 16.5, which are themselves bounded by the same timeout). NO button SHALL spin forever. A write that timed out may still be applied later by the SDK; the live whisper list then shows the result, and a retry that is denied is resolved by the re-reads above.
+8. THE conversion of a Write_Plan into Firestore operations SHALL live in one function, `applyPlan(db, plan)`, that does not import `lib/firebase`. THE client's `commit` and the emulator contract test SHALL both call it.
+
+### Requirement 21: Look, wording and states
+
+**User Story:** As a person on a phone, I want whispers to look and read like the rest of Volubly.
+
+#### Acceptance Criteria
+
+1. THE new screens SHALL use Tailwind and the existing colour tokens only (`night`, `surface`, `raised`, `line`, `ink`, `muted`, `accent`, `spark`, `live`, `warn`, `danger`, `plum`). THEY SHALL NOT use hard-coded colours.
+2. EVERY button and link SHALL have a touch target of at least 44px, and text SHALL be at least 12px.
+3. ANY animation SHALL use the `motion-safe:` prefix. No animation is required.
+4. EVERY list screen SHALL have a calm empty state, a loading state and a plain-language error state (`role="alert"`).
+5. ALL user-facing whisper wording SHALL live in one module (`whisperCopy.ts`). THAT module SHALL NOT contain "delete", "deleted", "erase", "encrypted", "private from", "secure", "safe", "100%" or "bot", and the claims in `safety-and-claims.md` SHALL hold: only "Only you and {name} can read this in the app", not any claim of encryption or total privacy.
+
+### Requirement 22: Listeners and clearing
+
+**User Story:** As a maintainer, I want no leaked listeners, because each one costs reads on the free plan.
+
+#### Acceptance Criteria
+
+1. EVERY Firestore listener added in Part 2 SHALL be created through one helper, `useSubscription`, which unsubscribes on unmount and whenever its inputs change.
+2. THE helper SHALL map permission-denied to a `denied` state and any other error to an `error` state with a retry, and SHALL NOT set state after unmount.
+3. THE listeners are: the person's whispers (Home link, Inbox, and an open Person_Sheet), one Whisper (Whisper_Chat) and one Whisper's messages (Whisper_Chat, open phase only). One-shot reads (slots, a block entry, a re-read after a denial) SHALL use `getDoc` or `getDocs` and SHALL ignore their result after unmount.
+4. THE implementation SHALL NOT add a listener on slots, on block entries or on other people's profiles (profiles use the existing cached `useProfiles`).
+5. EVERY document read in `useWhispers`, `useWhisper` and `useWhisperMessages` SHALL use `data({ serverTimestamps: 'estimate' })`, so a write that has not reached the server yet still has usable times.
+
+### Requirement 23: Client tests
+
+**User Story:** As a developer, I want tests that fail when a rule of the client is broken.
+
+#### Acceptance Criteria
+
+1. THE tests SHALL use Vitest and fast-check, live next to the code under `src/**/__tests__`, and render components with `renderToStaticMarkup`. WHERE a component reaches `src/lib/firebase.ts` through an import, THE test SHALL stub that module with `vi.mock`.
+2. THE tests SHALL include these fast-check properties: (a) exactly one Thread_Phase holds for any Whisper_View and time, and `open` holds exactly when `status == 'accepted'` and now is before `acceptedAt` plus 1 hour; (b) the Slot_Pick never returns a busy slot and returns none exactly when all three are busy; (c) inbox sections never list a declined, ended, expired or finished whisper, never list an invite the person sent in "Invites for you", and are sorted as specified; (d) every Write_Plan uses exactly the field set the rules allow for that transition, a slot document carries the same `expiresAt` as its Whisper and names the slot the Whisper names, and a message plan always includes its rate-limit write; (e) the generic and specific error texts never contain a forbidden word, and only two specific texts exist; (f) the countdown text is never negative and never increases as time passes.
+3. THE tests SHALL include one hook test using `react-dom/client` and `act` that mounts a component using `useSubscription`, unmounts it, and checks the unsubscribe function ran once. Static rendering never runs effects, so this is the one place `renderToStaticMarkup` is not enough. `jsdom` 25.0.1 is already installed and is the Vitest environment, so no dependency is added. IF `jsdom` and `happy-dom` were both missing, THE test SHALL instead call `useSubscription`'s plain core with a fake `open` function that counts unsubscribes, and NO dependency SHALL be added.
+4. THE tests SHALL include an emulator contract test in a new file under `tests/rules` that runs the client's Write_Plans against the real rules through `applyPlan(db, plan)` (the same function the client's `commit` calls), and expects every one to succeed, and expects the wrong-slot and wrong-field variants to fail. This keeps the client and the rules from drifting apart. THE test SHALL NOT contain its own copy of the plan-to-batch conversion.
+5. THE tests SHALL cover the offline and timeout handling (Requirement 20.6 and 20.7) with injected fakes and fake timers: offline writes nothing, a never-settling commit gives the generic error after the timeout, and a settled commit clears the timer.
+6. AFTER every task THE implementation SHALL run `npx tsc --noEmit -p tsconfig.app.json` and `npm test`. AFTER the Write_Plan task and the final task it SHALL also run `npm run test:emulator`. Every existing test SHALL still pass.
+7. THE implementation SHALL make one git commit per task.
+
+### Requirement 24: Documentation
+
+**User Story:** As a reader of the write-up, I want the client described at its real strength.
+
+#### Acceptance Criteria
+
+1. EACH task SHALL append one short line to a "Whisper threads: client" section of `docs/build-log.md`.
+2. THE log SHALL state what Kiro generated, that enforcement is still only in `firestore.rules`, that the client cannot see the other person's age band, that the age band is self-declared, that the slot cap limits spam, not a hard guarantee, that threads are not end-to-end encrypted, and that nothing was deployed.
+3. THE log and the UI wording SHALL NOT claim end-to-end encryption, "private from everyone", "zero logs", "child-safe" or "safe for children".
+4. THE README "Limitations, said plainly" list SHALL gain one line: ended whispers stay in the database until a TTL policy is set up. It SHALL say "ends" and SHALL NOT say "deleted".
+
+## Decisions recorded after review (Part 2)
+
+1. **Age bands.** The client cannot see the other person's band, and the band is not published on `publicProfiles`. The neutral sheet line and the generic error stay (14.3).
+2. **Three additions kept, kept small:** cancel a sent invite, decline and block, unblock in the Person_Sheet. They are buttons in existing views, with no new screen (12.8).
+3. **Shared cloud consent.** Whisper drafts share the room consent, and the whisper composer shows the same consent line (19.3).
+4. **Error wording.** Messages are chosen from what the client knows, never from the rules error (20.3). Message sending keeps the existing room texts (19.8).
+5. **Shared components.** Additive changes only. The existing room tests pass unchanged (12.3).
+6. **Reads and TTL.** The whisper list reads finished whispers until a TTL policy removes them. One README limitation line says so, using "ends" (24.4). TTL setup itself is not part of this work.
+7. **Tasks 1 to 9 ticked.** The 225 emulator tests back them up.
+8. **Added in review:** offline check and 10 second timeout on every write (20.6, 20.7); invite and accept re-read after an unclear result (14.8, 16.5); `applyPlan` shared by the client and the emulator test (20.8, 23.4); a denied send near the hour mark ends the chat (19.9); the hour timer re-checks on visibility and focus (17.9); `serverTimestamps: 'estimate'` on every read (22.5).
+9. **Not in this part:** a report button on whisper messages, notifications, TTL policy setup in the Firebase console, and any deploy.

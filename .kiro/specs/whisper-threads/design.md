@@ -2,7 +2,7 @@
 
 ## Overview
 
-A whisper thread is a private chat between two people. It is enforced entirely in `firestore.rules`. There are no Cloud Functions and the project stays on the Spark plan. This spec changes rules, tests and docs only. Nothing under `src/` changes.
+A whisper thread is a private chat between two people. It is enforced entirely in `firestore.rules`. There are no Cloud Functions and the project stays on the Spark plan. Part 1 of this design (up to "Risks") changes rules, tests and docs only. **Part 2 (the last section of this file) designs the client under `src/`.**
 
 Honest claims for this feature:
 
@@ -285,3 +285,378 @@ Nothing under `src/` changes.
 - **Time boundaries.** Tests cannot sit on the exact boundary. The boundary itself is covered by the rule text (`<` and `>=`), not by a test.
 - **Parser sensitivity.** `firestore.rules` is written as UTF-8 without a BOM. The first three bytes are checked after every write, because a BOM broke the emulator parser twice.
 - **Ternary in `slotIdFor`.** If the emulator rejects the nested ternary, the fallback is `slotId in [uid + '_1']`-style checks per value of `n`.
+
+---
+
+# Part 2: Client design
+
+Requirements 12 to 24 define the behaviour. This part says how it is built. Nothing here changes `firestore.rules`.
+
+## Principles
+
+1. **Pure core, thin shell.** Time, inbox sections, slot picking, write plans, error choice and copy are plain TypeScript with no Firebase import. They carry the property tests. Firebase code is limited to two small modules (`whisperApi.ts` and the subscription hooks).
+2. **The rules decide; the client explains early.** Pre-checks exist only to give a plain message before a write. A pre-check that is wrong is harmless, because the rules still refuse.
+3. **Reuse, do not copy.** The chat is the existing `MessageList`, `MessageItem` and `MessageComposer`, driven by the existing `useGhostCheck` and `useMessageGuard`.
+4. **Clear on the client.** Time, an `ended` status and a permission-denied each end the chat view, because open listeners never re-check rules.
+
+## File map
+
+New files (all under `src/`):
+
+| File | Kind | Purpose |
+| --- | --- | --- |
+| `lib/whisperTypes.ts` | pure | Constants, `WhisperStatus`, `WhisperView`, `SlotNumber` |
+| `lib/whisperTime.ts` | pure | `whisperPhase`, time left, `formatCountdown`, `formatInviteLeft` |
+| `lib/whisperData.ts` | pure | `toWhisperView` (Firestore data to `WhisperView`, or null when malformed) |
+| `lib/whisperInbox.ts` | pure | `buildInbox`, `pendingInviteCount`, `relationWith`, `endActionFor`, `canPickPerson`, `whispersAllowed` |
+| `lib/whisperSlots.ts` | pure | `pickSlot` |
+| `lib/whisperPlans.ts` | pure | `planInvite`, `planAccept`, `planDecline`, `planCancel`, `planEnd`, `planBlock`, `planUnblock`, `planMessage`, `SERVER_TIME` |
+| `lib/whisperCopy.ts` | pure | Every user-facing whisper string |
+| `lib/whisperErrors.ts` | pure | `WhisperErrorCode`, `whisperErrorText`, `classifyAcceptFailure` |
+| `lib/whisperTarget.ts` | pure | `makeWhisperTarget` (the composer `target`: pre-check, send, error wording) |
+| `lib/whisperApply.ts` | Firebase (no `lib/firebase`) | `applyPlan(db, plan)`: the one place a plan becomes a `writeBatch`. It imports `firebase/firestore` only and takes `db` as an argument, so the emulator test can call it with a rules-test Firestore |
+| `lib/whisperWrite.ts` | pure | `withTimeout(promise, ms)` and `runGuarded(apply, { online, timeoutMs })`: the offline check and the 10 second limit, with injected dependencies so they can be tested with fake timers |
+| `lib/whisperApi.ts` | Firebase | `commit(plan)` (= `runGuarded` around `applyPlan(db, plan)`), `loadMySlots`, `sendInvite`, `acceptInvite`, `declineInvite`, `cancelInvite`, `endWhisper`, `blockPerson`, `unblockPerson`, `hasBlocked`, `sendWhisperMessage` |
+| `hooks/useSubscription.ts` | generic | The only place a listener is opened and closed |
+| `hooks/useWhispers.ts` | Firebase | The person's whispers (one listener) |
+| `hooks/useWhisper.ts` | Firebase | One Whisper document |
+| `hooks/useWhisperMessages.ts` | Firebase | One Whisper's messages, enabled only while open |
+| `hooks/useCountdown.ts` | time | `useCountdown(endMs)` (1 s tick for the chip) and `useDeadline(endMs)` (flips once at the end) |
+| `components/WhispersLink.tsx` | UI | Home link with the pending-invite count |
+| `components/InviteCard.tsx` | UI | One invite: avatar, name, time left, Accept, Decline, Decline and block |
+| `components/WhisperRow.tsx` | UI | One open or waiting whisper row |
+| `components/WhisperHeader.tsx` | UI | Chat header: name, countdown chip, End, End and block |
+| `components/PersonSheet.tsx` | UI | Invite dialog opened from a room |
+| `pages/WhispersPage.tsx` | page | The Inbox |
+| `pages/WhisperPage.tsx` | page | The Whisper_Chat |
+
+Existing files that change (all additive; see "Changes to existing files"): `App.tsx`, `pages/HomePage.tsx`, `pages/RoomPage.tsx`, `components/MessageItem.tsx`, `components/MessageList.tsx`, `components/MessageComposer.tsx`.
+
+New test files: next to each pure module under `src/lib/__tests__`, component tests under `src/components/__tests__`, one hook test under `src/hooks/__tests__`, and one emulator test `tests/rules/whisperClientPlans.test.ts`.
+
+## Time model on the client
+
+Constants in `whisperTypes.ts`: `INVITE_WINDOW_MS = 15 min`, `THREAD_MS = 60 min`, `SLOT_MARGIN_MS = 60 s`, `EXPIRES_HINT_MS = 97.5 min`, `MAX_WHISPERS = 3`.
+
+`whisperPhase(w, nowMs)` returns exactly one of:
+
+| Phase | Condition |
+| --- | --- |
+| `invite_open` | `status == 'requested'` and `now < createdAt + 15 min` |
+| `invite_expired` | `status == 'requested'` and `now >= createdAt + 15 min` |
+| `open` | `status == 'accepted'`, `acceptedAt` set, `now < acceptedAt + 1 h` |
+| `time_up` | `status == 'accepted'` and `now >= acceptedAt + 1 h` (or `acceptedAt` missing) |
+| `declined` | `status == 'declined'` |
+| `ended` | `status == 'ended'` |
+
+The comparison is `<` for open and `>=` for over, the same as the rules. The client clock is used with no margin for what the person sees (the chat clears at the client's idea of the hour), and with a 60 second margin only where a wrong guess would cause a denied write (slot reuse). Server timestamps that are still pending are read with `serverTimestamps: 'estimate'`, as the room hooks do.
+
+`formatCountdown(ms)` returns `mm:ss` from a non-negative value (a negative value is shown as `00:00`). `formatInviteLeft(ms)` returns "14 min left" or "Under a minute left".
+
+## Types
+
+```ts
+type SlotNumber = 1 | 2 | 3
+type WhisperStatus = 'requested' | 'accepted' | 'declined' | 'ended'
+
+interface WhisperView {
+  id: string
+  inviterId: string
+  inviteeId: string
+  status: WhisperStatus
+  createdAtMs: number
+  acceptedAtMs: number | null
+  endedBy: string | null
+  inviterSlot: SlotNumber
+  inviteeSlot: SlotNumber | null
+  expiresAt: Timestamp        // kept as received: slots and messages must copy it exactly
+}
+```
+
+`toWhisperView` returns null for a document with a missing or wrong-typed field, so a malformed document is skipped, as `toMessageView` does.
+
+## Inbox model (pure)
+
+```ts
+buildInbox(whispers, uid, nowMs) => { invites: WhisperView[]; open: WhisperView[]; waiting: WhisperView[] }
+pendingInviteCount(whispers, uid, nowMs) => number
+relationWith(whispers, uid, otherUid, nowMs) => { kind: 'none' }
+  | { kind: 'open' | 'sent' | 'received'; id: string }
+endActionFor(w, uid) => 'decline' | 'cancel' | 'end' | null
+```
+
+- `invites`: `phase == 'invite_open'`, `inviteeId == uid`, sorted by `createdAtMs` ascending (soonest to expire first).
+- `open`: `phase == 'open'`, sorted by `acceptedAtMs` ascending (soonest to end first).
+- `waiting`: `phase == 'invite_open'`, `inviterId == uid`, sorted by `createdAtMs` descending.
+- `relationWith` looks for a live (`invite_open` or `open`) whisper between the two people in either direction, so the Person_Sheet can link to it instead of inviting again.
+- `canPickPerson({ senderId, uid, simulated, viewerBand })` is true only for a real message from someone else when the viewer's band is not `under_13`. `MessageList` and `RoomPage` both use it, so the Person_Sheet cannot open for a demo sender.
+- `whispersAllowed(band)` is false for `under_13`. The Home link, the Inbox gate and the chat gate use it.
+- `endActionFor`: `requested` and invitee gives `decline`; `requested` and inviter gives `cancel`; `accepted` and a member gives `end`; anything else gives null. This mirrors the four rule transitions.
+
+## Slot picking (pure)
+
+```ts
+interface SlotDoc { n: SlotNumber; whisperId: string }
+pickSlot(slots: SlotDoc[], whispers: WhisperView[], nowMs): SlotNumber | null
+```
+
+For each n in 1 to 3: no slot document gives rank `-Infinity` (never used, best). A slot whose Whisper is not in `whispers` gives rank 0 (free, treated as cleaned up). A slot whose Whisper is over (declined, ended, a requested one past 15 min plus 60 s, an accepted one past 1 h plus 60 s) is free with rank equal to that Whisper's `createdAtMs` (oldest first). A slot whose Whisper is not over is busy. Return the lowest rank, ties broken by the lower n, or null when all three are busy.
+
+The margin means the client calls a slot busy for up to 60 seconds longer than the rules do. That costs a short wait and never a denied write. If the loaded list is stale and the pick is wrong, the rules deny and the person sees the generic error (Requirement 15.5).
+
+## Write plans (pure)
+
+A plan is a list of operations. Values may be the marker `SERVER_TIME`, which `commit` turns into `serverTimestamp()`.
+
+```ts
+type Op =
+  | { kind: 'set' | 'update'; path: string[]; data: Record<string, PlanValue> }
+  | { kind: 'delete'; path: string[] }
+```
+
+| Action | Operations | Rules branch it must satisfy |
+| --- | --- | --- |
+| Invite | `set whispers/{wid}` with all ten fields (`createdAt` = SERVER_TIME, `acceptedAt` null, `endedBy` null, `inviteeSlot` null, `memberIds` = `[uid, inviteeId]`, `expiresAt`); `set whisperSlots/{uid}_{n}` with `userId`, `whisperId`, `openedAt` = SERVER_TIME, `expiresAt` = the same value | `whisperCreateOk` and `validWhisperSlot` |
+| Accept | `update whispers/{wid}` with `status`, `acceptedAt` = SERVER_TIME, `inviteeSlot`; `set whisperSlots/{uid}_{n}` as above with the Whisper's own `expiresAt` | `isAccept` and `validWhisperSlot` |
+| Decline | `update whispers/{wid}` with `status: 'declined'` | `isDecline` |
+| Cancel | `update` with `status: 'ended'`, `endedBy: uid` | `isCancel` |
+| End | `update` with `status: 'ended'`, `endedBy: uid` | `isEnd` |
+| Block | `set users/{uid}/blocked/{other}` with `blockedId`, `blockedAt` = SERVER_TIME; plus the decline, cancel or end operation when `endActionFor` is not null | `validBlock` |
+| Unblock | `delete users/{uid}/blocked/{other}` | block delete rule |
+| Message | `set whispers/{wid}/messages/{mid}` with the six fields (`sentAt` = SERVER_TIME, `expiresAt` = the Whisper's); `set whispers/{wid}/rateLimits/{uid}` with `userId`, `lastMessageAt` = SERVER_TIME, `expiresAt` | `whisperMessageOk` and the rate-limit rules |
+
+Using `set` on a slot or a rate-limit document that already exists is an update in Firestore, and the rules' update branch accepts it. This is the same pattern `sendMessage` uses for room rate limits.
+
+`applyPlan(db, plan)` in `whisperApply.ts` turns a plan into one `writeBatch`, mapping `SERVER_TIME` to `serverTimestamp()`, and commits it. It does not import `lib/firebase`; `db` is a parameter. `commit(plan)` in `whisperApi.ts` calls `runGuarded(() => applyPlan(db, plan), ...)`. The emulator contract test calls the same `applyPlan` with a rules-test Firestore, so the test runs the real conversion and cannot drift from the client. Because every plan is pure data, the property tests check the field sets against the rules' lists.
+
+### Offline and queued writes
+
+The web SDK does not reject a batch while the device is offline. It queues the write and the commit promise stays pending. `runGuarded` therefore does two things before and around every write:
+
+1. If `navigator.onLine === false`, return `generic` at once and write nothing (the same check `sendMessage` makes for "offline").
+2. Otherwise race the commit against a 10 second timer (`WRITE_TIMEOUT_MS`). On timeout return `generic`. The timer is cleared as soon as the commit settles.
+
+A write that timed out is still in the SDK's queue and may be applied later. The live whisper list then shows the result. If the person retries before that, the retry can be denied, and the re-reads below sort it out. The re-reads use the same timeout, and each one is a single `getDoc`.
+
+### Unclear results
+
+- **Invite.** The whisper id is made once per sheet and reused. After any failure (denied, timeout, offline) the client re-reads `whispers/{id}` once, before showing an error. If it exists with `status == 'requested'` and `inviterId == uid`, the sheet shows "Invite sent". Otherwise the generic error. A re-read of a missing document throws permission-denied under these rules, which is treated as "not there".
+- **Accept.** After any failure the client re-reads the Whisper. `accepted` with the viewer as invitee means the first attempt went through, so the client opens the whisper. Stale or no longer `requested` gives "This invite expired." Anything else gives the generic error.
+
+## Errors (pure)
+
+```ts
+type WhisperErrorCode = 'too_many' | 'invite_expired' | 'generic'
+whisperErrorText(code): string
+classifyAcceptFailure(reread: WhisperView | null, uid: string, nowMs): 'accepted' | 'invite_expired' | 'generic'
+classifyInviteFailure(reread: WhisperView | null, uid: string): 'sent' | 'generic'
+```
+
+- `too_many` comes only from `pickSlot` returning null.
+- `invite_expired` comes from the client-clock pre-check, or from `classifyAcceptFailure` after a failure: the re-read Whisper is stale, or its status is no longer `requested` (and it is not an accept by the viewer that already went through, which gives `accepted`).
+- `generic` is everything else, including offline, a block, an age mismatch, a full slot set the client did not see, and a stale pick.
+
+Message sending is separate: `whisperTarget.ts` maps the existing `SendErrorCode` values. `room_closed` becomes "This whisper has ended, so messages can no longer be sent." and the rest use `explainSendError` unchanged.
+
+## Copy (pure)
+
+All strings live in `whisperCopy.ts`. The test scans every exported string for the forbidden words in Requirement 21.5 and for words that would reveal a cause (Requirement 20.4). The main strings:
+
+| Where | Text |
+| --- | --- |
+| Too many | You have too many whispers open. End one or wait for one to finish, then try again. |
+| Expired | This invite expired. |
+| Generic | That didn't work. Check your connection and try again. |
+| Inbox empty | No whispers right now. Tap a name in a room to invite someone. |
+| Inbox error | We couldn't load your whispers. Check your connection and try again. |
+| Sections | Invites for you, Open whispers, Waiting for a reply |
+| Invite sent | Invite sent. {name} has 15 minutes to accept. |
+| Sheet note | Whispers work between people in the same age group. Not every invite can be sent. |
+| Chat note | Only you and {name} can read this in the app. It ends 1 hour after it was accepted. |
+| Ended | This whisper has ended. |
+| Unavailable | This whisper isn't available. |
+| End confirm | End this whisper? / End / Keep chatting |
+| Block result | You blocked {name}. |
+| Under 13 | Whispers aren't available for this account. |
+| Send closed | This whisper has ended, so messages can no longer be sent. |
+
+## Subscriptions
+
+```ts
+type SubState<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ready'; data: T }
+  | { status: 'denied' }
+  | { status: 'error'; message: string }
+
+useSubscription<T>(
+  open: ((emit: (s: SubState<T>) => void) => () => void) | null,
+  deps: unknown[],
+): { state: SubState<T>; retry: () => void }
+```
+
+`open` is called in an effect and returns the Firestore unsubscribe function. The effect cleanup calls it, resets the state, and sets a cancelled flag so a late snapshot is dropped. `open == null` gives `idle`, and the effect opens nothing. `retry` bumps an attempt counter that is part of the deps.
+
+| Hook | Query | Notes |
+| --- | --- | --- |
+| `useWhispers(uid \| null)` | `query(collection(db, 'whispers'), where('memberIds', 'array-contains', uid))` | Maps docs with `toWhisperView`, skips nulls. No `orderBy`, so no index. `null` uid (an `under_13` account) opens nothing. |
+| `useWhisper(id)` | `doc(db, 'whispers', id)` | Missing document and permission-denied both give `denied` ("not available"). |
+| `useWhisperMessages(id, enabled)` | `query(collection(db, 'whispers', id, 'messages'), orderBy('sentAt', 'asc'), limitToLast(200))` | `enabled == false` opens nothing and returns the `closed` state. Result type is the existing `MessagesState`. Documents map through the existing `toMessageView`. |
+
+Listener inventory (each gives its reads back when unmounted):
+
+| Screen | Listeners |
+| --- | --- |
+| Home | whispers (for the link count) |
+| Inbox | whispers |
+| Whisper_Chat | one Whisper; messages only while open |
+| Room with Person_Sheet open | whispers, only while the sheet is mounted |
+
+`useCountdown(endMs)` ticks once a second and returns the milliseconds left, computed from the device clock each tick. It is used only by the small header chip. `useDeadline(endMs)` returns a boolean that flips once. It uses a single `setTimeout` for the time left (the longest wait is one hour, well under the timer limit) and also re-checks `Date.now() >= endMs` on `visibilitychange` (when the page becomes visible) and on window `focus`, because one timer fires late after the device sleeps or a background tab is throttled. All three listeners and the timer are removed on unmount. The check itself is a pure function `deadlinePassed(endMs, nowMs)` so it can be tested. The page uses `useDeadline`, so the page re-renders once at the end and the chip re-renders each second.
+
+All three data hooks read documents with `data({ serverTimestamps: 'estimate' })` and map them through `toWhisperView` or `toMessageView`.
+
+## Screens
+
+### Inbox (`pages/WhispersPage.tsx`)
+
+State comes from `useWhispers(uid)` and `useNow()`. `buildInbox` runs in a `useMemo` keyed on both. Rows:
+
+- `InviteCard` (invite): avatar and username from `useProfiles`, time left, and three buttons: Accept, Decline, Decline and block. Each button is `min-h-[44px]`. The card keeps its own `busy` and `error` state. Accept runs: client-clock check, `loadMySlots`, `pickSlot`, `acceptInvite`. On `ok` it sets `window.location.hash = '#whisper/' + id`.
+- `WhisperRow` (open): the other person's avatar and name, time left, link to `#whisper/{id}`.
+- `WhisperRow` (waiting): the invitee's name, time left, a Cancel button, and a link.
+
+States: loading text, error (`role="alert"` plus Try again), empty, or the sections.
+
+### Gate for under-13 accounts
+
+`WhispersPage` and `WhisperPage` are thin wrappers. The wrapper checks `whispersAllowed(session.ageBand)` and returns the notice "Whispers aren't available for this account." with a link to `#` when it is false. Only when it is true does it render the inner component that calls `useWhispers` or `useWhisper`. Hooks cannot be called conditionally, so the split is what guarantees that no listener opens for that account. The test stubs the data hooks with `vi.mock` and checks they are not called for an `under_13` session.
+
+### Whisper_Chat (`pages/WhisperPage.tsx`)
+
+```
+WhisperPage(id, session)
+  whisper = useWhisper(id)                       // listener 1
+  other   = the member who is not session.uid
+  phase   = whisperPhase(view, now)              // now from useNow, plus useDeadline for the open end
+  switch:
+    denied or missing  -> Notice "This whisper isn't available."
+    invite_open        -> InviteResponse (invitee: Accept/Decline) or WaitingNotice (inviter: Cancel)
+    invite_expired     -> Notice "This invite expired."
+    declined/ended/time_up -> Notice "This whisper has ended."
+    open               -> OpenChat
+OpenChat
+  ended = useDeadline(acceptedAtMs + THREAD_MS)  // flips once at the end of the hour (also on focus and visibility)
+  forcedEnd = state set by target.onClosed       // a send was denied near the hour mark
+  if ended or forcedEnd -> Notice "This whisper has ended."   // unmounts list, composer, listener
+  msgState = useWhisperMessages(id, true)        // listener 2, only here
+  hidden   = useMessageGuard(messages, uid)      // reader check, on-device only
+  ghost    = useGhostCheck()
+  <WhisperHeader/> <MessageList/> <MessageComposer target=.../>
+```
+
+Because `OpenChat` is a separate component that only exists in the `open` phase, anything inside it (the messages listener, the message array, the composer and its draft, the hidden-message state) is dropped by React when the phase leaves `open`. `useWhisperMessages` also maps a permission-denied to `closed`, and `OpenChat` turns `closed` while the document still says open into the ended view (Requirement 17.6).
+
+`WhisperHeader` shows the avatar, name, the countdown chip (`role="timer"`, text `mm:ss left`), and End and End and block buttons. Choosing either shows an inline confirm row instead of a modal (End and Keep chatting; End and block and Keep chatting). The chip is its own component, so a one-second tick does not re-render the list.
+
+The Delay Shield, catch-up bar and unseen count are not used. `MessageList` receives an empty `held` map.
+
+On wide screens `RoomPage` shows `GhostStatus` in an aside. The composer's own `GhostStatus` is `lg:hidden`, so `WhisperPage` renders `<div className="hidden lg:block"><GhostStatus ghost={ghost} compact /></div>` above the composer. This keeps the AI badge visible at every width. The consent checkbox ("Allow a cloud check when this device can't do it...") is inside `GhostStatus`, so the whisper composer shows exactly the same consent line as the room composer, in both the composer's copy and the wide-screen copy. The consent value is the one stored by `useGhostCheck`, shared with rooms.
+
+### Person_Sheet (`components/PersonSheet.tsx`)
+
+Props: `{ person: string; session: ReadySession; onClose: () => void }`, where `person` is the other person's uid. It reads the person's profile with `useProfiles([person])`, the person's whispers with `useWhispers(session.uid)`, and checks `hasBlocked(session.uid, person)` once with `getDoc`. State is chosen by a pure function:
+
+```ts
+personSheetState({ blocked, loaded, relation, sent, sending, error }) =>
+  'loading' | 'blocked' | 'existing' | 'ready' | 'sending' | 'sent' | 'failed'
+```
+
+The whisper id is created once with `doc(collection(db, 'whispers')).id` when the sheet mounts and kept in a ref, so a retry reuses it. After a send the sheet shows the "Invite sent" text and a link to `#whispers`.
+
+### Home link (`components/WhispersLink.tsx`)
+
+Renders nothing when the viewer's band is `under_13`. Otherwise it calls `useWhispers(uid)` and renders an anchor to `#whispers` (44px high) with the count from `pendingInviteCount`. The accessible name is "Whispers" or "Whispers, N invites".
+
+## Changes to existing files
+
+All are additive and keep current behaviour when the new props are absent.
+
+| File | Change |
+| --- | --- |
+| `App.tsx` | Two regex branches before the room branch: `^#whispers$` and `^#whisper\/([A-Za-z0-9]+)$`. |
+| `pages/HomePage.tsx` | Render `<WhispersLink/>` in the header, next to the profile button. |
+| `components/MessageItem.tsx` | New optional prop `onNameClick?: () => void`. When present (and the message is not the reader's own) the name is rendered as a `button` with an expanded tap area (`relative` plus a pseudo-element reaching 44px) and `aria-label="Open {name}"`. Otherwise the same `span` as now. |
+| `components/MessageList.tsx` | New optional props `closedText`, `emptyText` (defaults are today's strings) and `onPickPerson?: (senderId: string) => void`. It passes `onNameClick` to `MessageItem` only for messages that are not simulated and not the reader's own. |
+| `components/MessageComposer.tsx` | New optional `target?: ComposerTarget`. See below. |
+| `pages/RoomPage.tsx` | One `useState<string \| null>` for the person being viewed, `onPickPerson` passed to `MessageList` (unless the viewer is `under_13`), and `<PersonSheet/>` rendered when set. |
+
+`MessageComposer` and the target:
+
+```ts
+interface ComposerTarget {
+  preCheck: (body: string, lastSentAtMs: number | null) => SendErrorCode | null
+  send: (i: { messageId: string; body: string; lastSentAtMs: number | null }) => Promise<SendResult>
+  explain: (code: SendErrorCode) => string
+}
+```
+
+The composer's props become a union: either the current room props (`roomId`, `openedAtMs`, `expiresAt`), or `target` (and then the room props are not needed). Inside the composer there are three branches, and each one falls back to today's code when `target` is absent: the pre-check in `submit` (`target ? target.preCheck(text, lastSent.current) : preCheckSend(...)`), the send in `doSend` (`target ? target.send(...) : sendMessage(...)`), and the error wording (`(target?.explain ?? explainSendError)(result.code)`). The rest of the composer (review panel, mentions, emoji, cool-down, wake note, Ghost status) is untouched. Neither `sendMessage.ts` nor `messageUtils.ts` changes.
+
+`makeWhisperTarget({ whisper, uid, createdAtMs })` builds:
+
+- `preCheck`: empty, over 280 characters, faster than 3 seconds since the last send, a link while `inProbation(createdAtMs, now)`, and `now >= acceptedAtMs + THREAD_MS` as `room_closed`. It reuses `containsLink` and `inProbation` from `messageUtils`.
+- `send`: calls `sendWhisperMessage` (a `commit(planMessage(...))`). On permission-denied it runs the existing `resolveDenied` with a `readMessage` that reads the message back, so a retried message that already went through counts as sent.
+- **Near the hour mark.** `makeWhisperTarget` also takes `onClosed: () => void`. When a send fails and `nearHourMark(whisper, nowMs)` is true (the device clock is within 60 seconds before or after `acceptedAt + THREAD_MS`), `send` calls `onClosed()` and returns `{ status: 'failed', code: 'room_closed' }`. `OpenChat` passes an `onClosed` that sets a local `forcedEnd` flag, and the page then shows the ended view exactly as if the deadline had flipped. The failure is not shown as a generic error. `nearHourMark` is a pure function with its own tests.
+- `explain`: `room_closed` gives the whisper text; everything else is `explainSendError`.
+
+## Ghost-Mode wiring
+
+| Step | Part used | Whisper change |
+| --- | --- | --- |
+| Draft redaction | `redact` inside `useGhostCheck.review` | none |
+| Sender check | `useGhostCheck.review`: on-device, or cloud with consent | none (shared consent) |
+| Review panel | `ReviewPanel` in `MessageComposer` | none |
+| Reader check | `useMessageGuard(messages, uid)`: patterns plus on-device model | none (never cloud) |
+| Hidden cards | `MessageItem` | none |
+| Status badge | `GhostStatus` | shown at every width (see above) |
+
+## Reads and cost on the Spark plan
+
+- The whispers listener reads every whisper the person is in on first load, including finished ones until a TTL policy removes them (Requirement 12.5, open point 8). A person can hold at most 3 open whispers, and each finished thread is one small document, so the first read stays small for a normal account.
+- Later snapshots charge only the changed documents.
+- Slot reads (at most 3) and block checks (1) happen only when the person acts.
+- Messages read at most 200 documents per open thread.
+- The Home link, the Inbox and an open Person_Sheet each have their own listener, but they are never mounted together on one screen except the sheet over a room, which has no Home link.
+
+## Test design (Part 2)
+
+| Module | Examples | Properties (fast-check) |
+| --- | --- | --- |
+| `whisperTime` | each phase at 14 and 16 minutes, 59 and 61 minutes; countdown text | exactly one phase; `open` iff accepted and inside the hour; countdown never negative and non-increasing |
+| `whisperData` | valid document; missing and wrong-typed fields give null | random junk never throws |
+| `whisperInbox` | the three sections; sorting; relation; endActionFor for every role and status | no ended, declined or stale item listed; invites never include the person's own sends; sorted |
+| `whisperSlots` | missing slot; gone whisper; each over state; each busy state; margin | never returns a busy slot; null exactly when all busy; prefers never-used |
+| `whisperPlans` | each plan's exact fields and paths | field sets equal the rules' lists; slot `expiresAt` equals the Whisper's; slot named by the Whisper; message plan includes rate limit |
+| `whisperErrors`, `whisperCopy` | the two exact texts; classify after a re-read (accepted, stale, no longer requested, missing; invite sent, not sent) | forbidden-word scan over every string; only two specific texts |
+| `whisperWrite` | offline writes nothing; a never-settling commit gives the generic error after 10 s (fake timers); a settled commit clears the timer; a rejected commit gives the generic error | the result is `generic` for any rejection or timeout |
+| `whisperTarget` | pre-check cases; closed wording; a failed send within 60 s either side of the hour calls `onClosed` and returns `room_closed`; a failed send 5 minutes away does not | `nearHourMark` is symmetric around the hour mark; link only blocked in probation |
+| `deadlinePassed` | before, at and after the end | monotone in time |
+| `useSubscription` | mount and unmount runs the unsubscribe once; deps change unsubscribes the old one; a late snapshot after unmount is ignored (uses `react-dom/client` and `act`; `jsdom` 25.0.1 is installed and is the test environment) | none |
+| `canPickPerson`, `whispersAllowed` | simulated sender gives false; own message gives false; `under_13` viewer gives false | none |
+| Components (static render) | `InviteCard`, `WhisperRow`, `WhisperHeader`, `PersonSheet` states, `MessageItem` with and without `onNameClick`, the chat views per phase, empty, loading and error states | none |
+| Emulator contract | every plan, run through the client's own `applyPlan`, accepted by the real rules; wrong slot, wrong field and extra field variants denied | none |
+
+Component tests import modules that reach `lib/firebase.ts` only through `MessageList`, `MessageComposer`, `WhisperPage`, `PersonSheet` and `InviteCard`. Those tests stub it with `vi.mock('../../lib/firebase', () => ({ db: {}, auth: {} }))`, the same way the pure modules avoid the import in the first place. The presentational pieces take plain props, so most tests need no stub.
+
+## Risks (Part 2)
+
+- **Wrong slot pick from stale data.** The result is a generic denial and a retry. The 60 second margin keeps the common case (a thread that just ended) from failing.
+- **Device clock far off.** The countdown and the early "expired" message follow the device clock, while the rules follow the server. A clock that runs ahead clears the chat early. A clock that runs behind ends in a permission-denied on the messages listener, which the chat treats as ended. The `expiresAt` hint is centred in its allowed window to tolerate about 20 minutes of drift on invite.
+- **Composer change touches the room send path.** The `target` branches fall back to the current code, no room file other than the composer changes, and the existing tests plus a render test for a room composer guard it. A manual room send check is part of the final task.
+- **A whisper document removed by TTL while a slot still names it.** Treated as free. The rules already reuse such a slot.
+- **First read size.** See "Reads and cost". If it ever matters, a `limit` with a client filter is not safe (no order), so the fix would be a TTL policy, not a query change.
+- **Queued writes after a timeout.** A write that timed out may still be applied later. The person sees the generic error, then possibly the result appears in the live list. For an invite, the re-read and the shared whisper id make a retry safe. For an end or a block, repeating the action is harmless: a second end is denied (the thread is already over) and the screen already shows the ended state.
+- **A re-read of a missing whisper throws permission-denied under these rules.** Every re-read treats permission-denied as "not there".
+- **Rules not deployed.** The client cannot be tried against the real project until the Part 1 rules are deployed. This spec does not deploy.
