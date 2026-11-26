@@ -33,3 +33,5 @@
 - Only the two people can read a thread through the app. It is not end-to-end encrypted. Messages are stored in Firestore.
 - Mutation check: five deliberate rule breaks (block check on messages, band check at accept, slot reuse condition, one-hour limit, slot match at accept). Four were caught at once. Removing the slot-side "slot id must match the named slot" clause left every test green, so two tests were added (an extra slot for the same Whisper in an invite batch and in an accept batch). The accept variant catches it.
 - The real client is not updated by this spec. The client is built separately.
+## 2026-11-26: Whisper threads: client (whisper-threads spec, Part 2)
+- Task 10: Kiro added the whisper types, the time model (phase, invite and thread time left, countdown text) and the Firestore-to-view mapping under src/lib, with example and fast-check tests. These are plain TypeScript with no Firebase import at run time. Nothing is wired into the screens yet. Nothing was deployed.
