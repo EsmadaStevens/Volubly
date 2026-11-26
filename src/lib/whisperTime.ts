@@ -21,6 +21,11 @@ export function whisperPhase(w: Timed, nowMs: number): WhisperPhase {
   }
 }
 
+/** Has the end time arrived? Same comparison as the rules: over at the end, not after it. */
+export function deadlinePassed(endMs: number, nowMs: number): boolean {
+  return nowMs >= endMs
+}
+
 /** Milliseconds left to accept a pending invite. 0 when it is not a pending invite. */
 export function inviteMsLeft(w: Timed, nowMs: number): number {
   if (w.status !== 'requested') return 0

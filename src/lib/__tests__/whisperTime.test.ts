@@ -1,6 +1,7 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import {
+  deadlinePassed,
   formatCountdown,
   formatInviteLeft,
   inviteMsLeft,
@@ -56,6 +57,21 @@ describe('time left', () => {
     expect(threadMsLeft(w, T0 + 90 * MIN)).toBe(0)
     expect(threadMsLeft({ ...w, status: 'ended' }, T0)).toBe(0)
     expect(threadMsLeft({ ...w, acceptedAtMs: null }, T0)).toBe(0)
+  })
+})
+
+describe('deadlinePassed', () => {
+  it('is false before the end, true at the end and after', () => {
+    expect(deadlinePassed(T0 + 1000, T0 + 999)).toBe(false)
+    expect(deadlinePassed(T0 + 1000, T0 + 1000)).toBe(true)
+    expect(deadlinePassed(T0 + 1000, T0 + 5000)).toBe(true)
+  })
+  it('once passed it stays passed as time goes on', () => {
+    fc.assert(
+      fc.property(fc.integer(), fc.integer(), fc.integer({ min: 0, max: 1_000_000 }), (end, now, step) => {
+        if (deadlinePassed(end, now)) expect(deadlinePassed(end, now + step)).toBe(true)
+      }),
+    )
   })
 })
 
