@@ -72,6 +72,9 @@ export const SEND_CLOSED = 'This whisper has ended, so messages can no longer be
 export const CHAT_EMPTY = 'No messages yet. Say something to get it started.'
 export const CHAT_LOADING = 'Loading messages...'
 export const BUSY = 'Working...'
+export const WHISPER_TITLE = 'Whisper'
+export const WHISPER_OPENING = 'Opening whisper...'
+export const blockConfirmTitle = (name: string): string => `End this whisper and block ${name}?`
 export const WHISPER_LOAD_ERROR = "We couldn't open this whisper. Check your connection and try again."
 export const MESSAGES_LOAD_ERROR = "We couldn't load the messages. Check your connection."
 export const countdownLabel = (mmss: string): string => `${mmss} left`

@@ -189,3 +189,27 @@ export async function sendWhisperMessage(i: {
   })
   return outcome === 'already_sent' ? { status: 'already_sent' } : { status: 'failed', code: outcome }
 }
+
+/**
+ * All the whispers the person is in, read once. The whisper page uses it for the slot pick when the
+ * person accepts there, so the page needs no listener on the whole list. null when it could not be
+ * read in time or the device is offline.
+ */
+export async function loadMyWhispers(uid: string): Promise<WhisperView[] | null> {
+  if (!isOnline()) return null
+  try {
+    const snap = await withTimeout(
+      getDocs(query(collection(db, 'whispers'), where('memberIds', 'array-contains', uid))),
+      WRITE_TIMEOUT_MS,
+    )
+    const out: WhisperView[] = []
+    for (const d of snap.docs) {
+      const v = toWhisperView(d.id, d.data({ serverTimestamps: 'estimate' }))
+      if (v) out.push(v)
+    }
+    return out
+  } catch (err) {
+    console.warn('Whispers could not be read:', reasonOf(err))
+    return null
+  }
+}
