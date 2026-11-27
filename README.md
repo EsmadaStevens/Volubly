@@ -108,6 +108,7 @@ The on-device route needs desktop Chrome with built-in AI available. The first u
 - On-device checks need desktop Chrome with built-in AI. Phones get the plain-code checks on what they read; the cloud check, only if allowed, applies to what they send.
 - Catch-up summaries come from a small model and can add details that weren't said.
 - Rooms close after 24 hours. Automatic deletion of old data is designed but not switched on, because it needs a billing plan.
+- Whispers end one hour after they are accepted. Ended whispers stay in the database until a TTL policy is set up.
 - Sign-in is anonymous and tied to one browser. Age bands are self-declared.
 
 ## Built with Kiro

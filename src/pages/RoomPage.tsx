@@ -3,6 +3,7 @@ import CatchUpBar from '../components/CatchUpBar'
 import LiveDot from '../components/LiveDot'
 import MessageComposer from '../components/MessageComposer'
 import MessageList from '../components/MessageList'
+import PersonSheet from '../components/PersonSheet'
 import { useProfiles } from '../hooks/useProfiles'
 import { useMessageGuard } from '../hooks/useMessageGuard'
 import { useMessages } from '../hooks/useMessages'
@@ -54,6 +55,8 @@ function RoomBody({
   const realState = useMessages(roomId)
   // Demo mode only: simulated messages live in this component's memory, never in the database.
   const [sim, setSim] = useState<MessageView[]>([])
+  // The person whose invite sheet is open (a uid), if any.
+  const [person, setPerson] = useState<string | null>(null)
   const msgState: MessagesState = useMemo(() => {
     if (!demo || realState.status !== 'ready') return realState
     return { status: 'ready', messages: [...realState.messages, ...sim].sort((a, b) => a.sentAtMs - b.sentAtMs) }
@@ -106,7 +109,7 @@ function RoomBody({
       </header>
 
       <main className="flex-1 py-2">
-        <MessageList state={msgState} hidden={hidden} held={held} uid={session.uid} names={names} myName={session.profile.username} />
+        <MessageList state={msgState} hidden={hidden} held={held} uid={session.uid} names={names} myName={session.profile.username} onPickPerson={setPerson} viewerBand={session.ageBand} />
       </main>
 
       <div className="sticky bottom-0 z-10 bg-night">
@@ -145,6 +148,7 @@ function RoomBody({
         {wide && <OpenRooms ageBand={session.ageBand} currentId={roomId} />}
       </div>
      </aside>
+     {person && <PersonSheet person={person} session={session} onClose={() => setPerson(null)} />}
     </div>
   )
 }

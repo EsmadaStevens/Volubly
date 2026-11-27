@@ -72,6 +72,8 @@ export const SEND_CLOSED = 'This whisper has ended, so messages can no longer be
 export const CHAT_EMPTY = 'No messages yet. Say something to get it started.'
 export const CHAT_LOADING = 'Loading messages...'
 export const BUSY = 'Working...'
+export const BTN_CLOSE = 'Close'
+export const LINK_OPEN_WHISPER = 'Open this whisper'
 export const WHISPER_TITLE = 'Whisper'
 export const WHISPER_OPENING = 'Opening whisper...'
 export const blockConfirmTitle = (name: string): string => `End this whisper and block ${name}?`
