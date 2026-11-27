@@ -6,6 +6,7 @@ import LiveDot from '../components/LiveDot'
 import ProfileSheet from '../components/ProfileSheet'
 import RoomCard from '../components/RoomCard'
 import TryItCard from '../components/TryItCard'
+import WhispersLink from '../components/WhispersLink'
 import SortTabs from '../components/SortTabs'
 import type { ReadySession } from '../components/AuthGate'
 import { primeProfile } from '../hooks/useProfiles'
@@ -47,6 +48,7 @@ export default function HomePage({ session }: { session: ReadySession }) {
           <LiveDot />
           <span className="text-xl font-bold tracking-tight text-ink">Volubly</span>
         </div>
+        <WhispersLink uid={session.uid} ageBand={session.ageBand} />
         <button
           type="button"
           onClick={() => setEditingProfile(true)}
